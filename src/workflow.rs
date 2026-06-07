@@ -1,6 +1,6 @@
 use std::io::{self, Write};
 
-use crate::{AutomaticCache, Item, Items, Result};
+use crate::{AutomaticCache, FileCache, Item, Items, Result};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Workflow {
@@ -12,6 +12,7 @@ pub struct Workflow {
     cache_key: Option<String>,
     cache_time_to_live: Option<u64>,
     max_cache_entries: Option<usize>,
+    file_cache: FileCache<Items>,
 }
 
 impl Workflow {
@@ -28,6 +29,7 @@ impl Workflow {
             cache_key: None,
             cache_time_to_live: None,
             max_cache_entries: None,
+            file_cache: FileCache::default(),
         }
     }
 
@@ -39,18 +41,29 @@ impl Workflow {
         }
     }
 
+    pub fn with_file_cache(file_cache: FileCache<Items>) -> Self {
+        Self {
+            file_cache,
+            ..Self::new()
+        }
+    }
+
     pub fn get_items(&self) -> Result<Items> {
-        Ok(self.items.clone())
+        match self.cache_key_hash() {
+            Some(cache_key) => Ok(self
+                .file_cache
+                .get(&cache_key)?
+                .unwrap_or_else(|| self.items.clone())),
+            None => Ok(self.items.clone()),
+        }
     }
 
     pub fn add_item(&mut self, item: Item) -> Result<()> {
-        self.items.push(item);
-        Ok(())
+        self.add_item_with_position(item, false)
     }
 
     pub fn add_item_to_beginning(&mut self, item: Item) -> Result<()> {
-        self.items.insert(0, item);
-        Ok(())
+        self.add_item_with_position(item, true)
     }
 
     pub fn add_items<I>(&mut self, items: I) -> Result<()>
@@ -58,11 +71,17 @@ impl Workflow {
         I: IntoIterator<Item = Item>,
     {
         self.items.extend(items);
+        if let Some(cache_key) = self.cache_key_hash() {
+            self.file_cache.put(&cache_key, self.items.clone())?;
+        }
         Ok(())
     }
 
     pub fn clear_items(&mut self) -> Result<()> {
         self.items.clear();
+        if let Some(cache_key) = self.cache_key_hash() {
+            self.file_cache.remove(&cache_key)?;
+        }
         Ok(())
     }
 
@@ -71,7 +90,7 @@ impl Workflow {
     }
 
     pub fn to_json_string_with(&self, options: RenderOptions) -> Result<String> {
-        Ok(serde_json::to_string(&self.render_items(options))?)
+        Ok(serde_json::to_string(&self.render_items(options)?)?)
     }
 
     pub fn write_to<W>(&self, writer: W) -> Result<()>
@@ -133,6 +152,10 @@ impl Workflow {
         self.cache_key = None;
     }
 
+    pub fn cache_key_hash(&self) -> Option<String> {
+        self.cache_key.as_deref().map(FileCache::<Items>::hash_key)
+    }
+
     pub fn cache_time_to_live(&self) -> Option<u64> {
         self.cache_time_to_live
     }
@@ -146,6 +169,8 @@ impl Workflow {
         self.cache_time_to_live = seconds.filter(|seconds| {
             (AutomaticCache::MIN_SECONDS..=AutomaticCache::MAX_SECONDS).contains(seconds)
         });
+        self.file_cache
+            .set_time_to_live_seconds_unchecked(self.effective_cache_time_to_live());
     }
 
     pub fn max_cache_entries(&self) -> Option<usize> {
@@ -162,6 +187,8 @@ impl Workflow {
         if self.max_cache_entries.is_some() {
             self.use_automatic_cache = false;
         }
+        self.file_cache
+            .set_max_entries_unchecked(self.effective_max_cache_entries());
     }
 
     pub fn use_automatic_cache(&self) -> bool {
@@ -186,8 +213,37 @@ impl Workflow {
         })
     }
 
-    fn render_items(&self, options: RenderOptions) -> Items {
-        let mut items = self.items.clone();
+    pub fn file_cache(&self) -> &FileCache<Items> {
+        &self.file_cache
+    }
+
+    pub fn set_file_cache(&mut self, file_cache: FileCache<Items>) {
+        self.file_cache = file_cache;
+    }
+
+    fn add_item_with_position(&mut self, item: Item, to_beginning: bool) -> Result<()> {
+        let cached_item = item.clone();
+        if to_beginning {
+            self.items.insert(0, item);
+        } else {
+            self.items.push(item);
+        }
+
+        if let Some(cache_key) = self.cache_key_hash() {
+            let mut cached_items = self.file_cache.get(&cache_key)?.unwrap_or_default();
+            if to_beginning {
+                cached_items.insert(0, cached_item);
+            } else {
+                cached_items.push(cached_item);
+            }
+            self.file_cache.put(&cache_key, cached_items)?;
+        }
+
+        Ok(())
+    }
+
+    fn render_items(&self, options: RenderOptions) -> Result<Items> {
+        let mut items = self.get_items()?;
         items.set_exact_order(self.disable_alfred_smart_result_ordering);
         items.set_skip_knowledge(self.skip_knowledge);
         items.set_cache(self.automatic_cache());
@@ -199,7 +255,7 @@ impl Workflow {
             items.push(item);
         }
 
-        items
+        Ok(items)
     }
 }
 

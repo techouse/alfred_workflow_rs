@@ -17,6 +17,12 @@ pub enum Error {
     #[error("unknown modifier key `{0}`")]
     UnknownModifierKey(String),
 
+    #[error("cache max entries must be greater than zero, got {entries}")]
+    InvalidMaxCacheEntries { entries: usize },
+
+    #[error("failed to access cache: {0}")]
+    Cache(String),
+
     #[error("failed to render JSON")]
     Json(#[from] serde_json::Error),
 
