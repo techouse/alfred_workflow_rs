@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 
-use cached::IOCached;
+use cached::ConcurrentCached;
 use cached::stores::DiskCache;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -210,9 +210,9 @@ where
 
     fn build_cache(&self) -> Result<DiskCache<String, T>> {
         DiskCache::new(&self.name)
-            .set_disk_directory(&self.path)
-            .set_lifespan(self.time_to_live_seconds)
-            .set_sync_to_disk_on_cache_change(true)
+            .disk_directory(&self.path)
+            .ttl(std::time::Duration::from_secs(self.time_to_live_seconds))
+            .sync_to_disk_on_cache_change(true)
             .build()
             .map_err(cache_error)
     }
