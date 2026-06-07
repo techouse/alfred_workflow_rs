@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 
 use cached::IOCached;
 use cached::stores::DiskCache;
-use serde::Serialize;
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 
 use crate::{AutomaticCache, Error, Result, Workflow};
 
@@ -22,6 +22,11 @@ pub struct FileCache<T> {
     time_to_live_seconds: u64,
     verbose: bool,
     _value: PhantomData<fn() -> T>,
+}
+
+#[derive(Debug, Default, Deserialize, Serialize)]
+struct CacheMetadata {
+    keys: Vec<String>,
 }
 
 impl<T> FileCache<T> {
@@ -155,17 +160,35 @@ where
 {
     pub fn get(&self, key: &str) -> Result<Option<T>> {
         let cache = self.build_cache()?;
-        cache.cache_get(&key.to_owned()).map_err(cache_error)
+        let value = cache.cache_get(&key.to_owned()).map_err(cache_error)?;
+
+        if value.is_some() {
+            self.touch_key(key)?;
+        } else {
+            self.forget_key(key)?;
+        }
+
+        Ok(value)
     }
 
     pub fn put(&self, key: &str, value: T) -> Result<Option<T>> {
         let cache = self.build_cache()?;
-        cache.cache_set(key.to_owned(), value).map_err(cache_error)
+        let previous = cache
+            .cache_set(key.to_owned(), value)
+            .map_err(cache_error)?;
+
+        for evicted_key in self.record_key_and_evictions(key)? {
+            cache.cache_remove(&evicted_key).map_err(cache_error)?;
+        }
+
+        Ok(previous)
     }
 
     pub fn remove(&self, key: &str) -> Result<Option<T>> {
         let cache = self.build_cache()?;
-        cache.cache_remove(&key.to_owned()).map_err(cache_error)
+        let previous = cache.cache_remove(&key.to_owned()).map_err(cache_error)?;
+        self.forget_key(key)?;
+        Ok(previous)
     }
 
     fn build_cache(&self) -> Result<DiskCache<String, T>> {
@@ -175,6 +198,61 @@ where
             .set_sync_to_disk_on_cache_change(true)
             .build()
             .map_err(cache_error)
+    }
+}
+
+impl<T> FileCache<T> {
+    fn metadata_path(&self) -> PathBuf {
+        self.path.join(format!("{}_keys.json", self.name))
+    }
+
+    fn read_metadata(&self) -> Result<CacheMetadata> {
+        match std::fs::read_to_string(self.metadata_path()) {
+            Ok(raw) if raw.trim().is_empty() => Ok(CacheMetadata::default()),
+            Ok(raw) => serde_json::from_str(&raw).map_err(cache_error),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                Ok(CacheMetadata::default())
+            }
+            Err(error) => Err(cache_error(error)),
+        }
+    }
+
+    fn write_metadata(&self, metadata: &CacheMetadata) -> Result<()> {
+        std::fs::create_dir_all(&self.path).map_err(cache_error)?;
+        let raw = serde_json::to_string(metadata).map_err(cache_error)?;
+        std::fs::write(self.metadata_path(), raw).map_err(cache_error)
+    }
+
+    fn touch_key(&self, key: &str) -> Result<()> {
+        let mut metadata = self.read_metadata()?;
+        metadata.keys.retain(|cached_key| cached_key != key);
+        metadata.keys.push(key.to_owned());
+        self.write_metadata(&metadata)
+    }
+
+    fn record_key_and_evictions(&self, key: &str) -> Result<Vec<String>> {
+        let mut metadata = self.read_metadata()?;
+        metadata.keys.retain(|cached_key| cached_key != key);
+        metadata.keys.push(key.to_owned());
+
+        let eviction_count = metadata.keys.len().saturating_sub(self.max_entries);
+        let evicted = metadata.keys.drain(0..eviction_count).collect();
+
+        self.write_metadata(&metadata)?;
+
+        Ok(evicted)
+    }
+
+    fn forget_key(&self, key: &str) -> Result<()> {
+        let mut metadata = self.read_metadata()?;
+        let old_len = metadata.keys.len();
+        metadata.keys.retain(|cached_key| cached_key != key);
+
+        if metadata.keys.len() != old_len {
+            self.write_metadata(&metadata)?;
+        }
+
+        Ok(())
     }
 }
 
