@@ -1,6 +1,6 @@
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("automatic cache seconds must be between {min} and {max}, got {seconds}")]
     InvalidAutomaticCacheSeconds { seconds: u64, min: u64, max: u64 },
@@ -16,4 +16,10 @@ pub enum Error {
 
     #[error("unknown modifier key `{0}`")]
     UnknownModifierKey(String),
+
+    #[error("failed to render JSON")]
+    Json(#[from] serde_json::Error),
+
+    #[error("failed to write output")]
+    Io(#[from] std::io::Error),
 }
