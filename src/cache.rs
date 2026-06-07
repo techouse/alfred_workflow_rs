@@ -117,6 +117,23 @@ impl<T> FileCache<T> {
     pub(crate) fn set_time_to_live_seconds_unchecked(&mut self, seconds: u64) {
         self.time_to_live_seconds = seconds;
     }
+
+    pub(crate) fn with_config_unchecked(
+        path: impl Into<PathBuf>,
+        name: impl Into<String>,
+        max_entries: usize,
+        time_to_live_seconds: u64,
+        verbose: bool,
+    ) -> Self {
+        Self {
+            path: path.into(),
+            name: name.into(),
+            max_entries,
+            time_to_live_seconds,
+            verbose,
+            _value: PhantomData,
+        }
+    }
 }
 
 impl<T> Default for FileCache<T> {

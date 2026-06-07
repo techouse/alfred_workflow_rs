@@ -4,6 +4,7 @@ pub mod cache;
 pub mod error;
 pub mod item;
 pub mod items;
+pub mod updater;
 pub mod workflow;
 
 pub use action::{Action, TypedAction};
@@ -12,4 +13,8 @@ pub use cache::{FileCache, WorkflowCache};
 pub use error::{Error, Result};
 pub use item::{Icon, IconType, Item, ItemText, ItemType, Modifier, ModifierKey};
 pub use items::Items;
+pub use updater::{
+    CommandOpener, GithubAsset, GithubRelease, GithubUser, Opener, Updater, UpdaterBuilder,
+    parse_version_tag,
+};
 pub use workflow::{RenderOptions, Workflow};

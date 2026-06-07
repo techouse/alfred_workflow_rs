@@ -23,6 +23,20 @@ pub enum Error {
     #[error("failed to access cache: {0}")]
     Cache(String),
 
+    #[error(
+        "GitHub repository URL must be hosted on github.com and include owner/repo, got `{url}`"
+    )]
+    InvalidGithubRepositoryUrl { url: String },
+
+    #[error("failed to parse version")]
+    Version(#[from] semver::Error),
+
+    #[error("failed to parse URL")]
+    Url(#[from] url::ParseError),
+
+    #[error("HTTP request failed: {0}")]
+    Http(String),
+
     #[error("failed to render JSON")]
     Json(#[from] serde_json::Error),
 
