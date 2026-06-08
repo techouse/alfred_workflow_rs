@@ -10,6 +10,30 @@ readme = "README.md"
 documentation = "https://docs.rs/alfred_workflow_rs"
 keywords = ["alfred", "workflow", "macos", "script-filter"]
 categories = ["development-tools"]
+exclude = [
+    ".codacy.yml",
+    ".github/",
+    ".gitattributes",
+    ".gitignore",
+    ".history/",
+    ".vscode/**",
+    "AGENTS.md",
+    "about.hbs",
+    "about.toml",
+    "CODE-OF-CONDUCT.md",
+    "docs/",
+    "fuzz/**",
+    "install.sh",
+    "Makefile",
+    "RELEASING.md",
+    "SPEC.md",
+    "scripts/**",
+    "src/**/tests.rs",
+    "src/**/tests/**",
+    "SECURITY.md",
+    "tests/**",
+    "THIRD-PARTY-LICENSES.md",
+]
 
 [dependencies]
 cached = { version = "2.0.2", default-features = false, features = ["disk_store"] }
