@@ -230,8 +230,8 @@ fn updater_builder_accessors_debug_and_equality_use_public_configuration()
     assert_eq!(updater.update_interval(), Duration::from_secs(300));
     assert_eq!(updater.file_cache(), &cache);
     assert!(format!("{updater:?}").contains("Updater"));
-    assert_eq!(CommandOpener, CommandOpener);
-    assert!(format!("{CommandOpener:?}").contains("CommandOpener"));
+    assert_eq!(CommandOpener::new(), CommandOpener::new());
+    assert!(format!("{:?}", CommandOpener::new()).contains("CommandOpener"));
 
     let same = Updater::builder(github_url("/example/workflow")?, "1.0.0")?
         .update_interval(Duration::from_secs(300))

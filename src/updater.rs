@@ -1,3 +1,4 @@
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -116,17 +117,43 @@ pub trait Opener: Send + Sync {
     fn open(&self, path: &Path) -> Result<()>;
 }
 
-/// macOS opener that delegates to the `open` command.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct CommandOpener;
+/// Opener that delegates to a system command, defaulting to macOS `open`.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CommandOpener {
+    command: OsString,
+}
+
+impl Default for CommandOpener {
+    fn default() -> Self {
+        Self {
+            command: OsString::from("open"),
+        }
+    }
+}
+
+impl CommandOpener {
+    /// Creates an opener that delegates to the macOS `open` command.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Creates an opener that delegates to a custom command program.
+    pub fn with_command(command: impl Into<OsString>) -> Self {
+        Self {
+            command: command.into(),
+        }
+    }
+}
 
 impl Opener for CommandOpener {
     fn open(&self, path: &Path) -> Result<()> {
-        let status = std::process::Command::new("open").arg(path).status()?;
+        let status = std::process::Command::new(&self.command).arg(path).status()?;
         if !status.success() {
-            return Err(
-                std::io::Error::other(format!("open command failed with status {status}")).into(),
-            );
+            return Err(std::io::Error::other(format!(
+                "{} command failed with status {status}",
+                self.command.to_string_lossy()
+            ))
+            .into());
         }
 
         Ok(())
@@ -195,7 +222,7 @@ impl Updater {
             file_cache: None,
             github_api_base_url: Url::parse("https://api.github.com")?,
             download_directory: None,
-            opener: Arc::new(CommandOpener),
+            opener: Arc::new(CommandOpener::new()),
         })
     }
 
@@ -580,22 +607,9 @@ mod tests {
         permissions.set_mode(0o755);
         std::fs::set_permissions(&command_path, permissions)?;
 
-        let original_path = std::env::var_os("PATH").expect("PATH should be set for tests");
-        let mut paths = vec![directory.path().to_path_buf()];
-        paths.extend(std::env::split_paths(&original_path));
-        let test_path = std::env::join_paths(paths)
-            .map_err(|error| Error::Io(std::io::Error::other(error.to_string())))?;
-
-        // SAFETY: the test restores PATH immediately after invoking CommandOpener.
-        unsafe {
-            std::env::set_var("PATH", test_path);
-        }
-        let success = CommandOpener.open(Path::new("success"));
-        let failure = CommandOpener.open(Path::new("failure"));
-        // SAFETY: restores the process PATH to the value captured before this test changed it.
-        unsafe {
-            std::env::set_var("PATH", original_path);
-        }
+        let opener = CommandOpener::with_command(command_path);
+        let success = opener.open(Path::new("success"));
+        let failure = opener.open(Path::new("failure"));
 
         success?;
         assert!(failure.is_err());
