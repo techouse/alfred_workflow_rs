@@ -75,6 +75,13 @@ package-check: ## Verify crates.io package creation
 	@grep -q '^docs/SPIKE_FINDINGS.md$$' $(PACKAGE_LIST)
 	@grep -q '^docs/DART_TEST_PARITY.md$$' $(PACKAGE_LIST)
 	@grep -q '^docs/DART_TO_RUST_API.md$$' $(PACKAGE_LIST)
+	@grep -q '^scripts/regenerate_dart_expected_json.sh$$' $(PACKAGE_LIST)
+	@grep -q '^tests/fixtures/README.md$$' $(PACKAGE_LIST)
+	@grep -q '^tests/fixtures/info.plist$$' $(PACKAGE_LIST)
+	@grep -q '^tests/fixtures/prefs.plist$$' $(PACKAGE_LIST)
+	@grep -q '^tests/fixtures/script_filter_full.json$$' $(PACKAGE_LIST)
+	@grep -q '^tests/fixtures/script_filter_exact_order.json$$' $(PACKAGE_LIST)
+	@grep -q '^tests/fixtures/github_release.json$$' $(PACKAGE_LIST)
 	$(CARGO) package --locked --allow-dirty
 
 package-check-offline: ## Verify crate package creation using only local cache
@@ -84,6 +91,13 @@ package-check-offline: ## Verify crate package creation using only local cache
 	@grep -q '^docs/SPIKE_FINDINGS.md$$' $(PACKAGE_LIST)
 	@grep -q '^docs/DART_TEST_PARITY.md$$' $(PACKAGE_LIST)
 	@grep -q '^docs/DART_TO_RUST_API.md$$' $(PACKAGE_LIST)
+	@grep -q '^scripts/regenerate_dart_expected_json.sh$$' $(PACKAGE_LIST)
+	@grep -q '^tests/fixtures/README.md$$' $(PACKAGE_LIST)
+	@grep -q '^tests/fixtures/info.plist$$' $(PACKAGE_LIST)
+	@grep -q '^tests/fixtures/prefs.plist$$' $(PACKAGE_LIST)
+	@grep -q '^tests/fixtures/script_filter_full.json$$' $(PACKAGE_LIST)
+	@grep -q '^tests/fixtures/script_filter_exact_order.json$$' $(PACKAGE_LIST)
+	@grep -q '^tests/fixtures/github_release.json$$' $(PACKAGE_LIST)
 	$(CARGO) package --locked --allow-dirty --offline
 
 publish-dry-run: ## Verify crates.io publishability without uploading

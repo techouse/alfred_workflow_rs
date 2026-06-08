@@ -35,6 +35,8 @@ pub mod item;
 pub mod items;
 /// GitHub release updater support.
 pub mod updater;
+/// Alfred user configuration plist parsing.
+pub mod user_config;
 /// In-memory workflow builder and renderer.
 pub mod workflow;
 
@@ -47,5 +49,12 @@ pub use items::Items;
 pub use updater::{
     CommandOpener, GithubAsset, GithubRelease, GithubUser, Opener, Updater, UpdaterBuilder,
     parse_version_tag,
+};
+pub use user_config::{
+    CheckBoxConfiguration, CheckBoxUserConfiguration, FilePickerConfiguration,
+    FilePickerUserConfiguration, NumberSliderConfiguration, NumberSliderUserConfiguration,
+    SelectConfiguration, SelectPair, SelectUserConfiguration, TextAreaConfiguration,
+    TextAreaUserConfiguration, TextFieldConfiguration, TextFieldUserConfiguration,
+    UserConfiguration, UserConfigurationType, UserPreferences,
 };
 pub use workflow::{RenderOptions, Workflow, WorkflowBuilder};

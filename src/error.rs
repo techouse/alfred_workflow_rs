@@ -42,6 +42,10 @@ pub enum Error {
     #[error("failed to access cache: {0}")]
     Cache(String),
 
+    /// Plist user configuration parsing failed.
+    #[error("failed to parse user configuration plist: {0}")]
+    UserConfiguration(String),
+
     /// GitHub updater repository URL was not a valid `github.com/owner/repo` URL.
     #[error(
         "GitHub repository URL must be hosted on github.com and include owner/repo, got `{url}`"
