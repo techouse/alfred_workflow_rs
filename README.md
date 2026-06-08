@@ -29,3 +29,19 @@ The current Dart package version inspected for this handoff is `1.2.4`.
 
 The Rust crate name remains `alfred_workflow_rs` for now because
 `alfred-workflow` is already taken on crates.io.
+
+## Examples
+
+The Rust examples mirror the Dart package examples and compile with
+`cargo test --examples`:
+
+- [`examples/basic.rs`](examples/basic.rs): basic Script Filter JSON output.
+- [`examples/caching.rs`](examples/caching.rs): query-keyed file cache usage.
+- [`examples/auto_update.rs`](examples/auto_update.rs): updater flow with an
+  update action.
+
+Run one with:
+
+```sh
+cargo run --example basic -- --query "hello"
+```
