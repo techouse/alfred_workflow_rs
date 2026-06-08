@@ -122,7 +122,13 @@ pub struct CommandOpener;
 
 impl Opener for CommandOpener {
     fn open(&self, path: &Path) -> Result<()> {
-        std::process::Command::new("open").arg(path).status()?;
+        let status = std::process::Command::new("open").arg(path).status()?;
+        if !status.success() {
+            return Err(
+                std::io::Error::other(format!("open command failed with status {status}")).into(),
+            );
+        }
+
         Ok(())
     }
 }
@@ -260,6 +266,7 @@ impl Updater {
 
     /// Downloads a release asset and returns its local path.
     pub fn download_asset(&self, asset: &GithubAsset) -> Result<Option<PathBuf>> {
+        let file_name = safe_asset_file_name(&asset.name)?;
         let mut response = match self
             .http_agent
             .get(asset.browser_download_url.as_str())
@@ -276,7 +283,7 @@ impl Updater {
         };
         std::fs::create_dir_all(&directory)?;
 
-        let path = directory.join(&asset.name);
+        let path = directory.join(file_name);
         let bytes = response.body_mut().read_to_vec().map_err(http_error)?;
         std::fs::write(&path, bytes)?;
 
@@ -477,6 +484,18 @@ fn unique_temp_directory() -> PathBuf {
         std::process::id(),
         timestamp
     ))
+}
+
+fn safe_asset_file_name(name: &str) -> Result<&str> {
+    if name.is_empty() || name == "." || name == ".." || name.contains('/') || name.contains('\\') {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("release asset name must be a plain file name, got `{name}`"),
+        )
+        .into());
+    }
+
+    Ok(name)
 }
 
 fn http_error(error: impl std::fmt::Display) -> Error {

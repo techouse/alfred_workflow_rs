@@ -71,7 +71,7 @@ pub enum Error {
     #[error("failed to render JSON")]
     Json(#[from] serde_json::Error),
 
-    /// Filesystem or output writer operation failed.
-    #[error("failed to write output")]
+    /// Filesystem, process, or output writer operation failed.
+    #[error("filesystem, process, or output writer operation failed: {0}")]
     Io(#[from] std::io::Error),
 }

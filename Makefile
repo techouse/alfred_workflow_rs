@@ -6,7 +6,7 @@ PACKAGE_LIST ?= /tmp/alfred-workflow-rs-package-list.txt
 
 .PHONY: help build build-release clean fmt fmt-check clippy test test-all \
 	test-doc coverage coverage-html docs docs-missing handoff-check \
-	package-list package-check package-check-offline publish-dry-run \
+	package-list package-check package-check-clean package-check-offline publish-dry-run \
 	release-check pre-release ci
 
 help: ## Show available targets
@@ -72,7 +72,7 @@ package-list: ## List files included in the published crate package
 	$(CARGO) package --locked --list --allow-dirty > $(PACKAGE_LIST)
 	@cat $(PACKAGE_LIST)
 
-package-check: ## Verify crates.io package creation
+package-check: ## Verify crates.io package creation during development
 	$(CARGO) package --locked --list --allow-dirty > $(PACKAGE_LIST)
 	@grep -q '^README.md$$' $(PACKAGE_LIST)
 	@grep -q '^LICENSE$$' $(PACKAGE_LIST)
@@ -90,8 +90,8 @@ package-check: ## Verify crates.io package creation
 	@grep -q '^tests/fixtures/github_release.json$$' $(PACKAGE_LIST)
 	$(CARGO) package --locked --allow-dirty
 
-package-check-offline: ## Verify crate package creation using only local cache
-	$(CARGO) package --locked --list --allow-dirty > $(PACKAGE_LIST)
+package-check-clean: ## Verify clean crates.io package creation
+	$(CARGO) package --locked --list > $(PACKAGE_LIST)
 	@grep -q '^README.md$$' $(PACKAGE_LIST)
 	@grep -q '^LICENSE$$' $(PACKAGE_LIST)
 	@grep -q '^SPEC.md$$' $(PACKAGE_LIST)
@@ -106,10 +106,28 @@ package-check-offline: ## Verify crate package creation using only local cache
 	@grep -q '^tests/fixtures/script_filter_full.json$$' $(PACKAGE_LIST)
 	@grep -q '^tests/fixtures/script_filter_exact_order.json$$' $(PACKAGE_LIST)
 	@grep -q '^tests/fixtures/github_release.json$$' $(PACKAGE_LIST)
-	$(CARGO) package --locked --allow-dirty --offline
+	$(CARGO) package --locked
+
+package-check-offline: ## Verify clean crate package creation using only local cache
+	$(CARGO) package --locked --list --offline > $(PACKAGE_LIST)
+	@grep -q '^README.md$$' $(PACKAGE_LIST)
+	@grep -q '^LICENSE$$' $(PACKAGE_LIST)
+	@grep -q '^SPEC.md$$' $(PACKAGE_LIST)
+	@grep -q '^docs/SPIKE_FINDINGS.md$$' $(PACKAGE_LIST)
+	@grep -q '^docs/DART_TEST_PARITY.md$$' $(PACKAGE_LIST)
+	@grep -q '^docs/DART_TO_RUST_API.md$$' $(PACKAGE_LIST)
+	@grep -q '^docs/DEPENDENCY_REVIEW.md$$' $(PACKAGE_LIST)
+	@grep -q '^scripts/regenerate_dart_expected_json.sh$$' $(PACKAGE_LIST)
+	@grep -q '^tests/fixtures/README.md$$' $(PACKAGE_LIST)
+	@grep -q '^tests/fixtures/info.plist$$' $(PACKAGE_LIST)
+	@grep -q '^tests/fixtures/prefs.plist$$' $(PACKAGE_LIST)
+	@grep -q '^tests/fixtures/script_filter_full.json$$' $(PACKAGE_LIST)
+	@grep -q '^tests/fixtures/script_filter_exact_order.json$$' $(PACKAGE_LIST)
+	@grep -q '^tests/fixtures/github_release.json$$' $(PACKAGE_LIST)
+	$(CARGO) package --locked --offline
 
 publish-dry-run: ## Verify crates.io publishability without uploading
-	$(CARGO) publish --dry-run --locked --allow-dirty
+	$(CARGO) publish --dry-run --locked
 
 release-check: ## Run release readiness audit checks
 	$(MAKE) docs
@@ -127,7 +145,7 @@ pre-release: ## Run the full local gate before tagging a release
 	$(MAKE) docs
 	$(MAKE) docs-missing
 	$(MAKE) handoff-check
-	$(MAKE) package-check
+	$(MAKE) package-check-clean
 	$(MAKE) publish-dry-run
 	$(MAKE) build-release
 

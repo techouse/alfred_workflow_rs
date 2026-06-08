@@ -340,6 +340,40 @@ fn download_asset_writes_response_bytes_to_configured_directory()
 }
 
 #[test]
+fn download_asset_rejects_names_with_path_components()
+-> std::result::Result<(), Box<dyn std::error::Error>> {
+    let dir = tempdir()?;
+    let download_dir = tempdir()?;
+    let cache =
+        FileCache::<GithubRelease>::try_with_config(dir.path(), "update_cache", 1, 60, false)?;
+    let updater = Updater::builder(github_url("/example/workflow")?, "1.0.0")?
+        .file_cache(cache)
+        .download_directory(download_dir.path())
+        .build()?;
+
+    for name in [
+        "../workflow.alfredworkflow",
+        "nested/workflow.alfredworkflow",
+        r"nested\workflow.alfredworkflow",
+        ".",
+        "..",
+        "",
+    ] {
+        let asset: GithubAsset = serde_json::from_value(fixture_asset_json(
+            1,
+            name,
+            "https://example.com/workflow.alfredworkflow",
+        ))?;
+
+        assert!(updater.download_asset(&asset).is_err());
+    }
+
+    assert_eq!(std::fs::read_dir(download_dir.path())?.count(), 0);
+
+    Ok(())
+}
+
+#[test]
 fn update_downloads_asset_and_invokes_injected_opener()
 -> std::result::Result<(), Box<dyn std::error::Error>> {
     let mut server = mockito::Server::new();

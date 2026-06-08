@@ -134,4 +134,4 @@ Release-readiness notes:
 
 ## License
 
-MIT. See [`LICENSE`](LICENSE).
+BSD 3-Clause. See [`LICENSE`](LICENSE).
