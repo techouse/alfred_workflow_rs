@@ -131,7 +131,3 @@ Release-readiness notes:
 - [`docs/DEPENDENCY_REVIEW.md`](docs/DEPENDENCY_REVIEW.md): dependency purpose
   and license review.
 - [`tests/fixtures/README.md`](tests/fixtures/README.md): fixture provenance.
-
-## License
-
-BSD 3-Clause. See [`LICENSE`](LICENSE).
