@@ -147,7 +147,9 @@ impl CommandOpener {
 
 impl Opener for CommandOpener {
     fn open(&self, path: &Path) -> Result<()> {
-        let status = std::process::Command::new(&self.command).arg(path).status()?;
+        let status = std::process::Command::new(&self.command)
+            .arg(path)
+            .status()?;
         if !status.success() {
             return Err(std::io::Error::other(format!(
                 "{} command failed with status {status}",
