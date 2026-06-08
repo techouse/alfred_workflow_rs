@@ -1,9 +1,29 @@
-use alfred_workflow_rs::{UserConfiguration, UserConfigurationType, UserPreferences, Workflow};
-use plist::Value;
+use std::path::Path;
+
+use alfred_workflow_rs::{
+    UserConfiguration, UserConfigurationType, UserPreferences, Workflow,
+    user_config::{get_defaults, get_user_preferences},
+};
+use plist::{Dictionary, Value};
 use pretty_assertions::assert_eq;
+use tempfile::tempdir;
 
 const INFO_PLIST: &str = "tests/fixtures/info.plist";
 const PREFS_PLIST: &str = "tests/fixtures/prefs.plist";
+
+fn write_plist(path: &Path, body: &str) -> Result<(), Box<dyn std::error::Error>> {
+    std::fs::write(
+        path,
+        format!(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+{body}
+</plist>"#
+        ),
+    )?;
+    Ok(())
+}
 
 #[test]
 fn missing_user_default_plists_return_empty_maps() -> Result<(), Box<dyn std::error::Error>> {
@@ -97,6 +117,68 @@ fn get_defaults_parses_all_user_configuration_variants() -> Result<(), Box<dyn s
 }
 
 #[test]
+fn user_configuration_type_wire_values_and_accessors_cover_all_variants()
+-> Result<(), Box<dyn std::error::Error>> {
+    let defaults = Workflow::new().get_defaults(INFO_PLIST)?;
+
+    let expected = [
+        (
+            "textfield_variable",
+            UserConfigurationType::TextField,
+            "textfield",
+            Some("textfield description"),
+            Some("textfield label"),
+        ),
+        (
+            "textarea_variable",
+            UserConfigurationType::TextArea,
+            "textarea",
+            Some("textarea description"),
+            Some("textarea label"),
+        ),
+        (
+            "checkbox_variable",
+            UserConfigurationType::CheckBox,
+            "checkbox",
+            Some("checkbox description"),
+            Some("checkbox label"),
+        ),
+        (
+            "popupbutton_variable",
+            UserConfigurationType::Select,
+            "popupbutton",
+            Some("popupbutton description"),
+            Some("popupbutton label"),
+        ),
+        (
+            "filepicker_variable",
+            UserConfigurationType::FilePicker,
+            "filepicker",
+            Some("filepicker description"),
+            Some("filepicker label"),
+        ),
+        (
+            "number_slider_variable",
+            UserConfigurationType::Slider,
+            "slider",
+            Some("number slider description"),
+            Some("number slider label"),
+        ),
+    ];
+
+    for (variable, config_type, wire, description, label) in expected {
+        let config = &defaults[variable];
+        assert_eq!(config_type.as_str(), wire);
+        assert_eq!(config.configuration_type(), config_type);
+        assert_eq!(config.variable(), variable);
+        assert_eq!(config.description(), description);
+        assert_eq!(config.label(), label);
+    }
+
+    Ok(())
+}
+
+#[test]
 fn get_user_preferences_returns_raw_plist_values() -> Result<(), Box<dyn std::error::Error>> {
     let preferences: UserPreferences = Workflow::new().get_user_preferences(PREFS_PLIST)?;
 
@@ -156,6 +238,104 @@ fn get_user_defaults_merges_preferences_without_losing_defaults()
     };
     assert_eq!(slider.config.default_value, 50);
     assert_eq!(slider.config.value, 69);
+
+    Ok(())
+}
+
+#[test]
+fn user_configuration_parsers_return_empty_maps_for_non_matching_schema()
+-> Result<(), Box<dyn std::error::Error>> {
+    let dir = tempdir()?;
+    let not_dictionary = dir.path().join("not-dictionary.plist");
+    let no_configs = dir.path().join("no-configs.plist");
+    let unknown_type = dir.path().join("unknown-type.plist");
+    let prefs_not_dictionary = dir.path().join("prefs-not-dictionary.plist");
+
+    write_plist(&not_dictionary, "<string>not a dictionary</string>")?;
+    write_plist(&no_configs, "<dict/>")?;
+    write_plist(
+        &unknown_type,
+        r#"<dict>
+  <key>userconfigurationconfig</key>
+  <array>
+    <dict>
+      <key>type</key>
+      <string>unknown</string>
+      <key>variable</key>
+      <string>ignored</string>
+      <key>config</key>
+      <dict/>
+    </dict>
+  </array>
+</dict>"#,
+    )?;
+    write_plist(&prefs_not_dictionary, "<string>not preferences</string>")?;
+
+    assert!(get_defaults(&not_dictionary)?.is_empty());
+    assert!(get_defaults(&no_configs)?.is_empty());
+    assert!(get_defaults(&unknown_type)?.is_empty());
+    assert!(get_user_preferences(&prefs_not_dictionary)?.is_empty());
+
+    Ok(())
+}
+
+#[test]
+fn user_configuration_parser_rejects_invalid_config_schema()
+-> Result<(), Box<dyn std::error::Error>> {
+    let dir = tempdir()?;
+    let invalid = dir.path().join("invalid.plist");
+
+    write_plist(
+        &invalid,
+        r#"<dict>
+  <key>userconfigurationconfig</key>
+  <array>
+    <string>not a user configuration dictionary</string>
+  </array>
+</dict>"#,
+    )?;
+
+    assert!(get_defaults(&invalid).is_err());
+
+    Ok(())
+}
+
+#[test]
+fn user_configuration_parser_accepts_unsigned_integer_slider_values()
+-> Result<(), Box<dyn std::error::Error>> {
+    let dir = tempdir()?;
+    let path = dir.path().join("unsigned-slider.plist");
+    let mut slider_config = Dictionary::new();
+    slider_config.insert("defaultvalue".into(), Value::Integer(50_u64.into()));
+    slider_config.insert("minvalue".into(), Value::Integer(0_u64.into()));
+    slider_config.insert("maxvalue".into(), Value::Integer(100_u64.into()));
+    slider_config.insert("showmarkers".into(), Value::Boolean(true));
+    slider_config.insert("onlystoponmarkers".into(), Value::Boolean(true));
+    slider_config.insert("markercount".into(), Value::Integer(u64::MAX.into()));
+
+    let mut slider = Dictionary::new();
+    slider.insert("type".into(), Value::String(String::from("slider")));
+    slider.insert(
+        "variable".into(),
+        Value::String(String::from("slider_variable")),
+    );
+    slider.insert("config".into(), Value::Dictionary(slider_config));
+
+    let mut root = Dictionary::new();
+    root.insert(
+        "userconfigurationconfig".into(),
+        Value::Array(vec![Value::Dictionary(slider)]),
+    );
+    Value::Dictionary(root).to_file_xml(&path)?;
+
+    let defaults = get_defaults(&path)?;
+    let UserConfiguration::NumberSlider(slider) = &defaults["slider_variable"] else {
+        panic!("slider config expected");
+    };
+    assert_eq!(slider.config.default_value, 50);
+    assert_eq!(slider.config.min, 0);
+    assert_eq!(slider.config.max, 100);
+    assert_eq!(slider.config.marker_count, None);
 
     Ok(())
 }

@@ -16,6 +16,7 @@ fn automatic_cache_serializes_seconds_and_omits_loosereload_when_unset()
 fn automatic_cache_serializes_loosereload_when_set() -> Result<(), Box<dyn std::error::Error>> {
     let cache = AutomaticCache::try_with_loose_reload(300, Some(false))?;
 
+    assert_eq!(cache.loose_reload(), Some(false));
     assert_eq!(
         serde_json::to_value(cache)?,
         json!({

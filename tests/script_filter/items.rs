@@ -165,3 +165,46 @@ fn items_deserializes_skipknowledge_and_cache() -> Result<(), Box<dyn std::error
 
     Ok(())
 }
+
+#[test]
+fn items_public_collection_api_mutates_and_iterates_predictably()
+-> Result<(), Box<dyn std::error::Error>> {
+    let cache = AutomaticCache::try_with_loose_reload(120, Some(true))?;
+    let mut items = Items::from(fixture_items())
+        .exact_order(true)
+        .with_skip_knowledge(true)
+        .with_cache(cache.clone());
+
+    assert_eq!(items.len(), 3);
+    assert!(!items.is_empty());
+    assert!(items.exact_order_value());
+    assert_eq!(items.skip_knowledge(), Some(true));
+    assert_eq!(items.cache(), Some(&cache));
+
+    items
+        .items_mut()
+        .push(Item::with_arg("Fourth", "fourth-arg"));
+    assert_eq!(
+        items.iter().map(Item::title).collect::<Vec<_>>(),
+        vec!["First", "Second", "Third", "Fourth"]
+    );
+    assert_eq!(
+        (&items).into_iter().map(Item::title).collect::<Vec<_>>(),
+        vec!["First", "Second", "Third", "Fourth"]
+    );
+
+    let owned_titles = items
+        .clone()
+        .without_skip_knowledge()
+        .without_cache()
+        .into_iter()
+        .map(|item| item.title().to_owned())
+        .collect::<Vec<_>>();
+    assert_eq!(owned_titles, vec!["First", "Second", "Third", "Fourth"]);
+
+    let cleared = items.without_skip_knowledge().without_cache();
+    assert_eq!(cleared.skip_knowledge(), None);
+    assert_eq!(cleared.cache(), None);
+
+    Ok(())
+}

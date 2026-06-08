@@ -1,4 +1,4 @@
-use alfred_workflow_rs::{FileCache, Item, Items};
+use alfred_workflow_rs::{FileCache, Item, Items, WorkflowCache};
 use pretty_assertions::assert_eq;
 use tempfile::tempdir;
 
@@ -72,6 +72,26 @@ fn file_cache_builder_configures_and_validates_cache() -> Result<(), Box<dyn std
 }
 
 #[test]
+fn file_cache_setters_validate_and_apply_public_configuration()
+-> Result<(), Box<dyn std::error::Error>> {
+    let dir = tempdir()?;
+    let mut cache = FileCache::<Items>::with_path(dir.path());
+
+    cache.set_max_entries(3)?;
+    cache.set_time_to_live_seconds(300)?;
+
+    assert_eq!(cache.max_entries(), 3);
+    assert_eq!(cache.time_to_live_seconds(), 300);
+    assert!(cache.set_max_entries(0).is_err());
+    assert!(cache.set_time_to_live_seconds(4).is_err());
+    assert!(cache.set_time_to_live_seconds(86_401).is_err());
+    assert_eq!(cache.max_entries(), 3);
+    assert_eq!(cache.time_to_live_seconds(), 300);
+
+    Ok(())
+}
+
+#[test]
 fn cache_keys_are_lower_case_md5_hex() {
     let fixtures = [
         ("Lorem", "db6ff2ffe2df7b8cfc0d9542bdce27dc"),
@@ -117,6 +137,46 @@ fn file_cache_get_put_and_remove_round_trips_items() -> Result<(), Box<dyn std::
 
     reopened.remove(&key)?;
     assert_eq!(cache.get(&key)?, None);
+
+    Ok(())
+}
+
+#[test]
+fn workflow_cache_trait_round_trips_values() -> Result<(), Box<dyn std::error::Error>> {
+    fn exercise_cache(
+        cache: &impl WorkflowCache<String>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        assert_eq!(cache.get("trait-key")?, None);
+        assert_eq!(cache.put("trait-key", String::from("trait-value"))?, None);
+        assert_eq!(cache.get("trait-key")?, Some(String::from("trait-value")));
+        assert_eq!(
+            cache.put("trait-key", String::from("replacement"))?,
+            Some(String::from("trait-value"))
+        );
+        assert_eq!(
+            cache.remove("trait-key")?,
+            Some(String::from("replacement"))
+        );
+        assert_eq!(cache.get("trait-key")?, None);
+
+        Ok(())
+    }
+
+    let dir = tempdir()?;
+    let cache = FileCache::<String>::try_with_config(dir.path(), "trait_cache", 5, 60, false)?;
+
+    exercise_cache(&cache)?;
+
+    Ok(())
+}
+
+#[test]
+fn file_cache_reports_metadata_io_errors() -> Result<(), Box<dyn std::error::Error>> {
+    let dir = tempdir()?;
+    std::fs::create_dir_all(dir.path().join("broken_cache_keys.json"))?;
+    let cache = FileCache::<String>::try_with_config(dir.path(), "broken_cache", 5, 60, false)?;
+
+    assert!(cache.get("missing-key").is_err());
 
     Ok(())
 }

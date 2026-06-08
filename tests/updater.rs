@@ -3,7 +3,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use alfred_workflow_rs::{
-    FileCache, GithubAsset, GithubRelease, Opener, Result, Updater, parse_version_tag,
+    CommandOpener, FileCache, GithubAsset, GithubRelease, Opener, Result, Updater,
+    parse_version_tag,
 };
 use pretty_assertions::assert_eq;
 use semver::Version;
@@ -82,6 +83,13 @@ fn github_url(path: &str) -> std::result::Result<Url, url::ParseError> {
     Url::parse(&format!("https://github.com{path}"))
 }
 
+fn closed_localhost_url() -> std::result::Result<Url, Box<dyn std::error::Error>> {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0")?;
+    let address = listener.local_addr()?;
+    drop(listener);
+    Ok(Url::parse(&format!("http://{address}"))?)
+}
+
 fn updater_with_mock_api(server_url: &str, cache: FileCache<GithubRelease>) -> Result<Updater> {
     Updater::builder(github_url("/example/workflow")?, "1.0.0")?
         .github_api_base_url(Url::parse(server_url)?)
@@ -140,6 +148,8 @@ fn parse_version_tag_accepts_dart_version_converter_forms()
 fn parse_version_tag_rejects_versions_without_major_minor_patch() {
     assert!(parse_version_tag("12").is_err());
     assert!(parse_version_tag("12.34").is_err());
+    assert!(parse_version_tag("release").is_err());
+    assert!(parse_version_tag("1..2.3").is_err());
 }
 
 #[test]
@@ -174,6 +184,8 @@ fn updater_new_rejects_non_github_repository_url()
     let url = Url::parse("https://example.com/example/workflow")?;
 
     assert!(Updater::new(url, "1.0.0").is_err());
+    assert!(Updater::new(github_url("/")?, "1.0.0").is_err());
+    assert!(Updater::new(github_url("/example")?, "1.0.0").is_err());
 
     Ok(())
 }
@@ -181,9 +193,61 @@ fn updater_new_rejects_non_github_repository_url()
 #[test]
 fn updater_new_requires_strict_current_semver()
 -> std::result::Result<(), Box<dyn std::error::Error>> {
-    for current_version in ["v1.0.0", "V1.0.0", "x1.0.0", "name-1.0.0"] {
+    for current_version in ["v1.0.0", "V1.0.0", "x1.0.0", "name-1.0.0", "1.0"] {
         assert!(Updater::new(github_url("/example/workflow")?, current_version).is_err());
     }
+
+    Ok(())
+}
+
+#[test]
+fn updater_builder_accessors_debug_and_equality_use_public_configuration()
+-> std::result::Result<(), Box<dyn std::error::Error>> {
+    let cache_dir = tempdir()?;
+    let download_dir = tempdir()?;
+    let cache = FileCache::<GithubRelease>::try_with_config(
+        cache_dir.path(),
+        "update_cache",
+        1,
+        300,
+        true,
+    )?;
+    let api_base_url = Url::parse("https://api.example.com")?;
+    let opener = RecordingOpener::default();
+    let updater = Updater::builder(github_url("/example/workflow")?, "1.0.0")?
+        .update_interval(Duration::from_secs(300))
+        .file_cache(cache.clone())
+        .github_api_base_url(api_base_url.clone())
+        .download_directory(download_dir.path())
+        .opener(opener)
+        .build()?;
+
+    assert_eq!(
+        updater.github_repository_url().as_str(),
+        "https://github.com/example/workflow"
+    );
+    assert_eq!(updater.current_version(), &Version::parse("1.0.0")?);
+    assert_eq!(updater.update_interval(), Duration::from_secs(300));
+    assert_eq!(updater.file_cache(), &cache);
+    assert!(format!("{updater:?}").contains("Updater"));
+    assert_eq!(CommandOpener, CommandOpener);
+    assert!(format!("{CommandOpener:?}").contains("CommandOpener"));
+
+    let same = Updater::builder(github_url("/example/workflow")?, "1.0.0")?
+        .update_interval(Duration::from_secs(300))
+        .file_cache(cache.clone())
+        .github_api_base_url(api_base_url)
+        .download_directory(download_dir.path())
+        .opener(RecordingOpener::default())
+        .build()?;
+    assert_eq!(updater, same);
+
+    let different = Updater::builder(github_url("/example/workflow")?, "1.0.1")?
+        .update_interval(Duration::from_secs(300))
+        .file_cache(cache)
+        .download_directory(download_dir.path())
+        .build()?;
+    assert_ne!(updater, different);
 
     Ok(())
 }
@@ -269,6 +333,53 @@ fn update_available_returns_false_when_release_is_not_newer()
 }
 
 #[test]
+fn update_available_fetches_and_caches_release_that_is_not_newer()
+-> std::result::Result<(), Box<dyn std::error::Error>> {
+    let mut server = mockito::Server::new();
+    let release = fixture_release(
+        "v1.0.0",
+        &format!("{}/download/workflow.alfredworkflow", server.url()),
+    )?;
+    let _mock = server
+        .mock("GET", "/repos/example/workflow/releases/latest")
+        .with_status(200)
+        .with_body(serde_json::to_string(&release)?)
+        .create();
+    let dir = tempdir()?;
+    let cache =
+        FileCache::<GithubRelease>::try_with_config(dir.path(), "update_cache", 1, 60, false)?;
+    let updater = updater_with_mock_api(&server.url(), cache.clone())?;
+
+    assert!(!updater.update_available()?);
+    assert_eq!(
+        cache
+            .get(&Updater::update_cache_key())?
+            .map(|release| release.tag_name),
+        Some(Version::parse("1.0.0")?)
+    );
+
+    Ok(())
+}
+
+#[test]
+fn update_available_returns_false_when_latest_release_fetch_returns_none()
+-> std::result::Result<(), Box<dyn std::error::Error>> {
+    let mut server = mockito::Server::new();
+    let _mock = server
+        .mock("GET", "/repos/example/workflow/releases/latest")
+        .with_status(404)
+        .create();
+    let dir = tempdir()?;
+    let cache =
+        FileCache::<GithubRelease>::try_with_config(dir.path(), "update_cache", 1, 60, false)?;
+    let updater = updater_with_mock_api(&server.url(), cache)?;
+
+    assert!(!updater.update_available()?);
+
+    Ok(())
+}
+
+#[test]
 fn fetch_latest_release_returns_none_for_http_errors()
 -> std::result::Result<(), Box<dyn std::error::Error>> {
     let mut server = mockito::Server::new();
@@ -282,6 +393,41 @@ fn fetch_latest_release_returns_none_for_http_errors()
     let updater = updater_with_mock_api(&server.url(), cache)?;
 
     assert_eq!(updater.fetch_latest_release()?, None);
+
+    Ok(())
+}
+
+#[test]
+fn fetch_latest_release_reports_invalid_json_response()
+-> std::result::Result<(), Box<dyn std::error::Error>> {
+    let mut server = mockito::Server::new();
+    let _mock = server
+        .mock("GET", "/repos/example/workflow/releases/latest")
+        .with_status(200)
+        .with_body("{not-json")
+        .create();
+    let dir = tempdir()?;
+    let cache =
+        FileCache::<GithubRelease>::try_with_config(dir.path(), "update_cache", 1, 60, false)?;
+    let updater = updater_with_mock_api(&server.url(), cache)?;
+
+    assert!(updater.fetch_latest_release().is_err());
+
+    Ok(())
+}
+
+#[test]
+fn fetch_latest_release_reports_transport_errors()
+-> std::result::Result<(), Box<dyn std::error::Error>> {
+    let dir = tempdir()?;
+    let cache =
+        FileCache::<GithubRelease>::try_with_config(dir.path(), "update_cache", 1, 60, false)?;
+    let updater = Updater::builder(github_url("/example/workflow")?, "1.0.0")?
+        .github_api_base_url(closed_localhost_url()?)
+        .file_cache(cache)
+        .build()?;
+
+    assert!(updater.fetch_latest_release().is_err());
 
     Ok(())
 }
@@ -345,6 +491,89 @@ fn download_asset_writes_response_bytes_to_configured_directory()
 
     assert_eq!(path, download_dir.path().join("workflow.alfredworkflow"));
     assert_eq!(std::fs::read(path)?, b"workflow-bytes");
+
+    Ok(())
+}
+
+#[test]
+fn download_asset_returns_none_for_http_errors()
+-> std::result::Result<(), Box<dyn std::error::Error>> {
+    let mut server = mockito::Server::new();
+    let _mock = server
+        .mock("GET", "/download/workflow.alfredworkflow")
+        .with_status(404)
+        .create();
+    let dir = tempdir()?;
+    let cache =
+        FileCache::<GithubRelease>::try_with_config(dir.path(), "update_cache", 1, 60, false)?;
+    let updater = Updater::builder(github_url("/example/workflow")?, "1.0.0")?
+        .github_api_base_url(Url::parse(&server.url())?)
+        .file_cache(cache)
+        .build()?;
+    let asset: GithubAsset = serde_json::from_value(fixture_asset_json(
+        1,
+        "workflow.alfredworkflow",
+        &format!("{}/download/workflow.alfredworkflow", server.url()),
+    ))?;
+
+    assert_eq!(updater.download_asset(&asset)?, None);
+
+    Ok(())
+}
+
+#[test]
+fn download_asset_reports_transport_errors() -> std::result::Result<(), Box<dyn std::error::Error>>
+{
+    let dir = tempdir()?;
+    let cache =
+        FileCache::<GithubRelease>::try_with_config(dir.path(), "update_cache", 1, 60, false)?;
+    let updater = Updater::builder(github_url("/example/workflow")?, "1.0.0")?
+        .file_cache(cache)
+        .build()?;
+    let asset_url = closed_localhost_url()?.join("/download/workflow.alfredworkflow")?;
+    let asset: GithubAsset = serde_json::from_value(fixture_asset_json(
+        1,
+        "workflow.alfredworkflow",
+        asset_url.as_str(),
+    ))?;
+
+    assert!(updater.download_asset(&asset).is_err());
+
+    Ok(())
+}
+
+#[test]
+fn download_asset_uses_unique_temp_directory_when_no_directory_is_configured()
+-> std::result::Result<(), Box<dyn std::error::Error>> {
+    let mut server = mockito::Server::new();
+    let _mock = server
+        .mock("GET", "/download/workflow.alfredworkflow")
+        .with_status(200)
+        .with_body("workflow-bytes")
+        .create();
+    let dir = tempdir()?;
+    let cache =
+        FileCache::<GithubRelease>::try_with_config(dir.path(), "update_cache", 1, 60, false)?;
+    let updater = Updater::builder(github_url("/example/workflow")?, "1.0.0")?
+        .github_api_base_url(Url::parse(&server.url())?)
+        .file_cache(cache)
+        .build()?;
+    let asset: GithubAsset = serde_json::from_value(fixture_asset_json(
+        1,
+        "workflow.alfredworkflow",
+        &format!("{}/download/workflow.alfredworkflow", server.url()),
+    ))?;
+
+    let path = updater.download_asset(&asset)?.expect("asset downloaded");
+
+    assert_eq!(
+        path.file_name().and_then(|name| name.to_str()),
+        Some("workflow.alfredworkflow")
+    );
+    assert_eq!(std::fs::read(&path)?, b"workflow-bytes");
+    if let Some(parent) = path.parent() {
+        std::fs::remove_dir_all(parent)?;
+    }
 
     Ok(())
 }
@@ -427,6 +656,59 @@ fn update_downloads_asset_and_invokes_injected_opener()
         download_dir.path().join("workflow.alfredworkflow")
     );
     assert_eq!(std::fs::read(&opened_paths[0])?, b"workflow-bytes");
+
+    Ok(())
+}
+
+#[test]
+fn update_returns_without_opening_when_cached_release_is_not_newer()
+-> std::result::Result<(), Box<dyn std::error::Error>> {
+    let dir = tempdir()?;
+    let opener = RecordingOpener::default();
+    let cache =
+        FileCache::<GithubRelease>::try_with_config(dir.path(), "update_cache", 1, 60, false)?;
+    cache.put(
+        &Updater::update_cache_key(),
+        fixture_release("v1.0.0", "https://example.com/workflow.alfredworkflow")?,
+    )?;
+    let updater = Updater::builder(github_url("/example/workflow")?, "2.0.0")?
+        .file_cache(cache)
+        .opener(opener.clone())
+        .build()?;
+
+    updater.update()?;
+
+    assert!(opener.opened_paths().is_empty());
+
+    Ok(())
+}
+
+#[test]
+fn update_returns_without_opening_when_release_has_no_workflow_asset()
+-> std::result::Result<(), Box<dyn std::error::Error>> {
+    let dir = tempdir()?;
+    let opener = RecordingOpener::default();
+    let cache =
+        FileCache::<GithubRelease>::try_with_config(dir.path(), "update_cache", 1, 60, false)?;
+    cache.put(
+        &Updater::update_cache_key(),
+        serde_json::from_value(fixture_release_json(
+            "v2.0.0",
+            vec![fixture_asset_json(
+                1,
+                "readme.txt",
+                "https://example.com/readme.txt",
+            )],
+        ))?,
+    )?;
+    let updater = Updater::builder(github_url("/example/workflow")?, "1.0.0")?
+        .file_cache(cache)
+        .opener(opener.clone())
+        .build()?;
+
+    updater.update()?;
+
+    assert!(opener.opened_paths().is_empty());
 
     Ok(())
 }
