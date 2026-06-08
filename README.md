@@ -12,7 +12,7 @@ Behavioral parity is tracked in [`docs/DART_TEST_PARITY.md`](docs/DART_TEST_PARI
 
 ```toml
 [dependencies]
-alfred_workflow_rs = "0.1"
+alfred_workflow_rs = "1.0.0-rc.1"
 ```
 
 The crate requires Rust `1.88` or newer.

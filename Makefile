@@ -60,6 +60,8 @@ handoff-check: ## Check Rust port handoff docs are present and internally anchor
 	@test -f docs/DART_TO_RUST_API.md
 	@test -f docs/DEPENDENCY_REVIEW.md
 	@grep -q 'v1.0.0-rc.1' SPEC.md
+	@grep -q '^version = "1.0.0-rc.1"$$' Cargo.toml
+	@grep -q '^alfred_workflow_rs = "1.0.0-rc.1"$$' README.md
 	@grep -q 'alfred_workflow_rs' README.md
 	@grep -q 'test/unit/alfred_workflow_test.dart' docs/DART_TEST_PARITY.md
 	@grep -q 'test/unit/services/alfred_updater_test.dart' docs/DART_TEST_PARITY.md

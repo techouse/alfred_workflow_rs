@@ -1,11 +1,11 @@
 [package]
 name = "alfred_workflow_rs"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 edition = "2024"
 rust-version = "1.88"
 authors = ["Klemen Tusar"]
 description = "Rust port of the Dart alfred_workflow helper library for Alfred workflows."
-license = "MIT"
+license = "BSD-3-Clause"
 readme = "README.md"
 documentation = "https://docs.rs/alfred_workflow_rs"
 keywords = ["alfred", "workflow", "macos", "script-filter"]
