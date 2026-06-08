@@ -8,68 +8,115 @@ use url::Url;
 
 use crate::{Error, FileCache, Result};
 
+/// GitHub release author/uploader payload.
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct GithubUser {
+    /// GitHub login.
     pub login: String,
+    /// Numeric GitHub user ID.
     pub id: u64,
+    /// GitHub GraphQL node ID.
     pub node_id: String,
+    /// Avatar URL.
     pub avatar_url: Url,
+    /// Gravatar ID.
     pub gravatar_id: String,
+    /// API URL.
     pub url: Url,
+    /// Browser URL.
     pub html_url: Url,
+    /// Repositories API URL.
     pub repos_url: Url,
+    /// GitHub user type.
     #[serde(rename = "type")]
     pub user_type: String,
+    /// Whether the user is a site admin.
     pub site_admin: bool,
 }
 
+/// GitHub release asset payload.
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct GithubAsset {
+    /// Asset API URL.
     pub url: Url,
+    /// Numeric asset ID.
     pub id: u64,
+    /// GitHub GraphQL node ID.
     pub node_id: String,
+    /// Asset file name.
     pub name: String,
+    /// Optional asset label.
     pub label: Option<String>,
+    /// Uploading GitHub user.
     pub uploader: GithubUser,
+    /// Asset content type.
     pub content_type: String,
+    /// Asset state.
     pub state: String,
+    /// Asset size in bytes.
     pub size: u64,
+    /// Asset download count.
     pub download_count: u64,
+    /// Asset creation timestamp.
     pub created_at: String,
+    /// Asset update timestamp.
     pub updated_at: String,
+    /// Browser download URL.
     pub browser_download_url: Url,
 }
 
+/// GitHub release payload.
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct GithubRelease {
+    /// Release API URL.
     pub url: Url,
+    /// Release assets API URL.
     pub assets_url: Url,
+    /// Upload URL template.
     pub upload_url: Url,
+    /// Browser URL.
     pub html_url: Url,
+    /// Numeric release ID.
     pub id: u64,
+    /// Release author.
     pub author: GithubUser,
+    /// GitHub GraphQL node ID.
     pub node_id: String,
+    /// Release tag parsed as a semantic version.
     #[serde(with = "version_tag")]
     pub tag_name: Version,
+    /// Target branch or commit.
     pub target_commitish: String,
+    /// Release name.
     pub name: String,
+    /// Whether the release is a draft.
     pub draft: bool,
+    /// Whether the release is a prerelease.
     pub prerelease: bool,
+    /// Release creation timestamp.
     pub created_at: String,
+    /// Release publication timestamp.
     pub published_at: String,
+    /// Release assets.
     pub assets: Vec<GithubAsset>,
+    /// Tarball URL.
     pub tarball_url: Url,
+    /// Zipball URL.
     pub zipball_url: Url,
+    /// Optional release body.
     pub body: Option<String>,
 }
 
+/// Opens a downloaded workflow update.
 pub trait Opener: Send + Sync {
+    /// Opens the downloaded `.alfredworkflow` file.
     fn open(&self, path: &Path) -> Result<()>;
 }
 
+/// macOS opener that delegates to the `open` command.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct CommandOpener;
 
@@ -80,6 +127,7 @@ impl Opener for CommandOpener {
     }
 }
 
+/// GitHub release updater for Alfred workflow bundles.
 #[derive(Clone)]
 pub struct Updater {
     github_repository_url: Url,
@@ -120,13 +168,17 @@ impl PartialEq for Updater {
 impl Eq for Updater {}
 
 impl Updater {
+    /// Cache key used for latest-release metadata.
     pub const UPDATE_KEY: &'static str = "update";
+    /// Cache name used for latest-release metadata.
     pub const UPDATE_CACHE_NAME: &'static str = "update_cache";
 
+    /// Creates an updater with default configuration.
     pub fn new(github_repository_url: Url, current_version: &str) -> Result<Self> {
         Self::builder(github_repository_url, current_version)?.build()
     }
 
+    /// Creates an updater builder.
     pub fn builder(github_repository_url: Url, current_version: &str) -> Result<UpdaterBuilder> {
         validate_repository_url(&github_repository_url)?;
 
@@ -141,26 +193,32 @@ impl Updater {
         })
     }
 
+    /// Returns the hashed update cache key.
     pub fn update_cache_key() -> String {
         FileCache::<GithubRelease>::hash_key(Self::UPDATE_KEY)
     }
 
+    /// Returns the GitHub repository URL.
     pub fn github_repository_url(&self) -> &Url {
         &self.github_repository_url
     }
 
+    /// Returns the current workflow version.
     pub fn current_version(&self) -> &Version {
         &self.current_version
     }
 
+    /// Returns the update check interval.
     pub fn update_interval(&self) -> Duration {
         self.update_interval
     }
 
+    /// Returns the release metadata cache.
     pub fn file_cache(&self) -> &FileCache<GithubRelease> {
         &self.file_cache
     }
 
+    /// Returns whether a newer GitHub release is available.
     pub fn update_available(&self) -> Result<bool> {
         let cache_key = Self::update_cache_key();
         if let Some(cached_release) = self.file_cache.get(&cache_key)? {
@@ -176,6 +234,7 @@ impl Updater {
         Ok(false)
     }
 
+    /// Fetches the latest GitHub release.
     pub fn fetch_latest_release(&self) -> Result<Option<GithubRelease>> {
         let url = self.latest_release_url()?;
         let mut response = match self.http_agent.get(url.as_str()).call() {
@@ -188,6 +247,7 @@ impl Updater {
         Ok(Some(serde_json::from_str(&body)?))
     }
 
+    /// Finds the first `.alfredworkflow` asset in a release.
     pub fn find_alfred_workflow_asset<'a>(
         &self,
         release: &'a GithubRelease,
@@ -198,6 +258,7 @@ impl Updater {
             .find(|asset| asset.name.ends_with(".alfredworkflow"))
     }
 
+    /// Downloads a release asset and returns its local path.
     pub fn download_asset(&self, asset: &GithubAsset) -> Result<Option<PathBuf>> {
         let mut response = match self
             .http_agent
@@ -222,6 +283,7 @@ impl Updater {
         Ok(Some(path))
     }
 
+    /// Downloads and opens an available workflow update.
     pub fn update(&self) -> Result<()> {
         if !self.update_available()? {
             return Ok(());
@@ -257,6 +319,7 @@ impl Updater {
     }
 }
 
+/// Builder for [`Updater`] configuration.
 pub struct UpdaterBuilder {
     github_repository_url: Url,
     current_version: Version,
@@ -268,26 +331,31 @@ pub struct UpdaterBuilder {
 }
 
 impl UpdaterBuilder {
+    /// Sets the release check cache TTL.
     pub fn update_interval(mut self, update_interval: Duration) -> Self {
         self.update_interval = update_interval;
         self
     }
 
+    /// Sets a custom release metadata cache.
     pub fn file_cache(mut self, file_cache: FileCache<GithubRelease>) -> Self {
         self.file_cache = Some(file_cache);
         self
     }
 
+    /// Sets a custom GitHub API base URL.
     pub fn github_api_base_url(mut self, github_api_base_url: Url) -> Self {
         self.github_api_base_url = github_api_base_url;
         self
     }
 
+    /// Sets the directory for downloaded workflow assets.
     pub fn download_directory(mut self, download_directory: impl Into<PathBuf>) -> Self {
         self.download_directory = Some(download_directory.into());
         self
     }
 
+    /// Sets the opener used for downloaded workflow assets.
     pub fn opener<O>(mut self, opener: O) -> Self
     where
         O: Opener + 'static,
@@ -296,6 +364,7 @@ impl UpdaterBuilder {
         self
     }
 
+    /// Builds the updater.
     pub fn build(self) -> Result<Updater> {
         let file_cache = match self.file_cache {
             Some(file_cache) => file_cache,
@@ -321,6 +390,7 @@ impl UpdaterBuilder {
     }
 }
 
+/// Parses a Dart-compatible release tag into a semantic version.
 pub fn parse_version_tag(value: &str) -> Result<Version> {
     let version = find_version_core(value).unwrap_or(value);
     Ok(Version::parse(version)?)

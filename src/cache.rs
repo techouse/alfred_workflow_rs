@@ -8,12 +8,17 @@ use serde::{Deserialize, Serialize};
 
 use crate::{AutomaticCache, Error, Result, Workflow};
 
+/// Generic workflow cache interface.
 pub trait WorkflowCache<T> {
+    /// Returns the value for a key if present and not expired.
     fn get(&self, key: &str) -> Result<Option<T>>;
+    /// Stores a value and returns any previous value.
     fn put(&self, key: &str, value: T) -> Result<Option<T>>;
+    /// Removes a value and returns any previous value.
     fn remove(&self, key: &str) -> Result<Option<T>>;
 }
 
+/// File-backed cache used by workflow and updater APIs.
 #[derive(Clone, Debug)]
 pub struct FileCache<T> {
     path: PathBuf,
@@ -30,12 +35,15 @@ struct CacheMetadata {
 }
 
 impl<T> FileCache<T> {
+    /// Default cache name used for query result caches.
     pub const DEFAULT_NAME: &'static str = "query_cache";
 
+    /// Creates a cache at the default path.
     pub fn new() -> Self {
         Self::with_path(Self::default_path())
     }
 
+    /// Creates a cache at a custom directory with default settings.
     pub fn with_path(path: impl Into<PathBuf>) -> Self {
         Self {
             path: path.into(),
@@ -47,6 +55,12 @@ impl<T> FileCache<T> {
         }
     }
 
+    /// Creates a cache builder at a custom directory.
+    pub fn builder(path: impl Into<PathBuf>) -> FileCacheBuilder<T> {
+        FileCacheBuilder::new(path)
+    }
+
+    /// Creates a cache from explicit settings.
     pub fn try_with_config(
         path: impl Into<PathBuf>,
         name: impl Into<String>,
@@ -67,6 +81,7 @@ impl<T> FileCache<T> {
         })
     }
 
+    /// Returns the default cache path.
     pub fn default_path() -> PathBuf {
         std::env::current_exe()
             .ok()
@@ -74,36 +89,44 @@ impl<T> FileCache<T> {
             .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
     }
 
+    /// Hashes a cache key with lower-case MD5 hex, matching the Dart package.
     pub fn hash_key(key: &str) -> String {
         format!("{:x}", md5::compute(key.as_bytes()))
     }
 
+    /// Returns the cache directory.
     pub fn path(&self) -> &Path {
         &self.path
     }
 
+    /// Returns the cache name.
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    /// Returns the maximum number of entries tracked for LRU eviction.
     pub fn max_entries(&self) -> usize {
         self.max_entries
     }
 
+    /// Returns the time-to-live in seconds.
     pub fn time_to_live_seconds(&self) -> u64 {
         self.time_to_live_seconds
     }
 
+    /// Returns whether verbose cache mode is enabled.
     pub fn verbose(&self) -> bool {
         self.verbose
     }
 
+    /// Sets the maximum number of entries.
     pub fn set_max_entries(&mut self, max_entries: usize) -> Result<()> {
         validate_max_entries(max_entries)?;
         self.set_max_entries_unchecked(max_entries);
         Ok(())
     }
 
+    /// Sets the time-to-live in seconds.
     pub fn set_time_to_live_seconds(&mut self, seconds: u64) -> Result<()> {
         validate_time_to_live(seconds)?;
         self.set_time_to_live_seconds_unchecked(seconds);
@@ -133,6 +156,66 @@ impl<T> FileCache<T> {
             verbose,
             _value: PhantomData,
         }
+    }
+}
+
+/// Builder for [`FileCache`] configuration.
+#[derive(Clone, Debug)]
+pub struct FileCacheBuilder<T> {
+    path: PathBuf,
+    name: String,
+    max_entries: usize,
+    time_to_live_seconds: u64,
+    verbose: bool,
+    _value: PhantomData<fn() -> T>,
+}
+
+impl<T> FileCacheBuilder<T> {
+    /// Creates a builder at the given cache directory.
+    pub fn new(path: impl Into<PathBuf>) -> Self {
+        Self {
+            path: path.into(),
+            name: FileCache::<T>::DEFAULT_NAME.to_owned(),
+            max_entries: Workflow::DEFAULT_MAX_CACHE_ENTRIES,
+            time_to_live_seconds: Workflow::DEFAULT_CACHE_TIME_TO_LIVE,
+            verbose: false,
+            _value: PhantomData,
+        }
+    }
+
+    /// Sets the cache name.
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = name.into();
+        self
+    }
+
+    /// Sets the maximum number of entries.
+    pub fn max_entries(mut self, max_entries: usize) -> Self {
+        self.max_entries = max_entries;
+        self
+    }
+
+    /// Sets the time-to-live in seconds.
+    pub fn time_to_live_seconds(mut self, seconds: u64) -> Self {
+        self.time_to_live_seconds = seconds;
+        self
+    }
+
+    /// Sets verbose cache mode.
+    pub fn verbose(mut self, verbose: bool) -> Self {
+        self.verbose = verbose;
+        self
+    }
+
+    /// Builds the cache and validates the configuration.
+    pub fn build(self) -> Result<FileCache<T>> {
+        FileCache::try_with_config(
+            self.path,
+            self.name,
+            self.max_entries,
+            self.time_to_live_seconds,
+            self.verbose,
+        )
     }
 }
 
@@ -175,6 +258,7 @@ impl<T> FileCache<T>
 where
     T: Serialize + DeserializeOwned,
 {
+    /// Returns the value for a key if present and not expired.
     pub fn get(&self, key: &str) -> Result<Option<T>> {
         let cache = self.build_cache()?;
         let value = cache.cache_get(&key.to_owned()).map_err(cache_error)?;
@@ -188,6 +272,7 @@ where
         Ok(value)
     }
 
+    /// Stores a value and returns any previous value.
     pub fn put(&self, key: &str, value: T) -> Result<Option<T>> {
         let cache = self.build_cache()?;
         let previous = cache
@@ -201,6 +286,7 @@ where
         Ok(previous)
     }
 
+    /// Removes a value and returns any previous value.
     pub fn remove(&self, key: &str) -> Result<Option<T>> {
         let cache = self.build_cache()?;
         let previous = cache.cache_remove(&key.to_owned()).map_err(cache_error)?;

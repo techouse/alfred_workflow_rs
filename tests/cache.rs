@@ -46,6 +46,32 @@ fn file_cache_validates_public_configuration() -> Result<(), Box<dyn std::error:
 }
 
 #[test]
+fn file_cache_builder_configures_and_validates_cache() -> Result<(), Box<dyn std::error::Error>> {
+    let dir = tempdir()?;
+
+    let cache = FileCache::<Items>::builder(dir.path())
+        .name("builder_cache")
+        .max_entries(3)
+        .time_to_live_seconds(300)
+        .verbose(true)
+        .build()?;
+
+    assert_eq!(cache.path(), dir.path());
+    assert_eq!(cache.name(), "builder_cache");
+    assert_eq!(cache.max_entries(), 3);
+    assert_eq!(cache.time_to_live_seconds(), 300);
+    assert!(cache.verbose());
+    assert!(
+        FileCache::<Items>::builder(dir.path())
+            .max_entries(0)
+            .build()
+            .is_err()
+    );
+
+    Ok(())
+}
+
+#[test]
 fn cache_keys_are_lower_case_md5_hex() {
     let fixtures = [
         ("Lorem", "db6ff2ffe2df7b8cfc0d9542bdce27dc"),

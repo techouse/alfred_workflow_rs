@@ -3,10 +3,16 @@ use serde_json::Value;
 
 use crate::{Error, Result};
 
+/// Alfred action value.
+///
+/// Alfred accepts action payloads as a string, a list, or a typed object.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Action {
+    /// A single string action value.
     String(String),
+    /// A list of nested action values.
     List(Vec<Action>),
+    /// A typed Alfred action object.
     Typed(TypedAction),
 }
 
@@ -88,6 +94,9 @@ impl<'de> Deserialize<'de> for Action {
     }
 }
 
+/// Typed Alfred action object.
+///
+/// At least one field must be present.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct TypedAction {
     text: Option<ActionText>,
@@ -97,6 +106,7 @@ pub struct TypedAction {
 }
 
 impl TypedAction {
+    /// Creates a typed action from optional fields.
     pub fn try_new(
         text: Option<ActionText>,
         url: Option<String>,
@@ -115,6 +125,7 @@ impl TypedAction {
         })
     }
 
+    /// Creates a typed action with only a `text` field.
     pub fn text(text: impl Into<ActionText>) -> Self {
         Self {
             text: Some(text.into()),
@@ -124,6 +135,7 @@ impl TypedAction {
         }
     }
 
+    /// Creates a typed action with only a `url` field.
     pub fn url(url: impl Into<String>) -> Self {
         Self {
             text: None,
@@ -133,6 +145,7 @@ impl TypedAction {
         }
     }
 
+    /// Creates a typed action with only a `file` field.
     pub fn file(file: impl Into<String>) -> Self {
         Self {
             text: None,
@@ -142,6 +155,7 @@ impl TypedAction {
         }
     }
 
+    /// Creates a typed action with only an `auto` field.
     pub fn auto(auto: impl Into<String>) -> Self {
         Self {
             text: None,
@@ -151,38 +165,46 @@ impl TypedAction {
         }
     }
 
+    /// Sets or replaces the `text` field.
     pub fn with_text(mut self, text: impl Into<ActionText>) -> Self {
         self.text = Some(text.into());
         self
     }
 
+    /// Sets or replaces the `url` field.
     pub fn with_url(mut self, url: impl Into<String>) -> Self {
         self.url = Some(url.into());
         self
     }
 
+    /// Sets or replaces the `file` field.
     pub fn with_file(mut self, file: impl Into<String>) -> Self {
         self.file = Some(file.into());
         self
     }
 
+    /// Sets or replaces the `auto` field.
     pub fn with_auto(mut self, auto: impl Into<String>) -> Self {
         self.auto = Some(auto.into());
         self
     }
 
+    /// Returns the `text` field.
     pub fn text_value(&self) -> Option<&ActionText> {
         self.text.as_ref()
     }
 
+    /// Returns the `url` field.
     pub fn url_value(&self) -> Option<&str> {
         self.url.as_deref()
     }
 
+    /// Returns the `file` field.
     pub fn file_value(&self) -> Option<&str> {
         self.file.as_deref()
     }
 
+    /// Returns the `auto` field.
     pub fn auto_value(&self) -> Option<&str> {
         self.auto.as_deref()
     }
@@ -206,9 +228,12 @@ impl<'de> Deserialize<'de> for TypedAction {
     }
 }
 
+/// Text payload used by a typed Alfred action.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ActionText {
+    /// A single text value.
     String(String),
+    /// A list of text values.
     List(Vec<String>),
 }
 

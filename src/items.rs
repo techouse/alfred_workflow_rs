@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{AutomaticCache, Item};
 
+/// Collection rendered as Alfred Script Filter JSON.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Items {
     items: Vec<Item>,
@@ -12,6 +13,7 @@ pub struct Items {
 }
 
 impl Items {
+    /// Creates a result collection from items.
     pub fn new(items: Vec<Item>) -> Self {
         Self {
             items,
@@ -21,71 +23,89 @@ impl Items {
         }
     }
 
+    /// Sets exact-order rendering.
+    ///
+    /// When true, item `uid` fields are omitted from serialized JSON.
     pub fn exact_order(mut self, exact_order: bool) -> Self {
         self.exact_order = exact_order;
         self
     }
 
+    /// Sets Alfred's `skipknowledge` flag.
     pub fn with_skip_knowledge(mut self, skip_knowledge: bool) -> Self {
         self.skip_knowledge = Some(skip_knowledge);
         self
     }
 
+    /// Clears Alfred's `skipknowledge` flag.
     pub fn without_skip_knowledge(mut self) -> Self {
         self.skip_knowledge = None;
         self
     }
 
+    /// Sets Alfred automatic-cache metadata.
     pub fn with_cache(mut self, cache: AutomaticCache) -> Self {
         self.cache = Some(cache);
         self
     }
 
+    /// Clears Alfred automatic-cache metadata.
     pub fn without_cache(mut self) -> Self {
         self.cache = None;
         self
     }
 
+    /// Mutates exact-order rendering.
     pub fn set_exact_order(&mut self, exact_order: bool) {
         self.exact_order = exact_order;
     }
 
+    /// Mutates Alfred's `skipknowledge` flag.
     pub fn set_skip_knowledge(&mut self, skip_knowledge: Option<bool>) {
         self.skip_knowledge = skip_knowledge;
     }
 
+    /// Mutates Alfred automatic-cache metadata.
     pub fn set_cache(&mut self, cache: Option<AutomaticCache>) {
         self.cache = cache;
     }
 
+    /// Returns the contained items.
     pub fn items(&self) -> &[Item] {
         &self.items
     }
 
+    /// Returns the mutable backing item vector.
     pub fn items_mut(&mut self) -> &mut Vec<Item> {
         &mut self.items
     }
 
+    /// Returns whether exact-order rendering is enabled.
     pub fn exact_order_value(&self) -> bool {
         self.exact_order
     }
 
+    /// Returns Alfred's `skipknowledge` flag.
     pub fn skip_knowledge(&self) -> Option<bool> {
         self.skip_knowledge
     }
 
+    /// Returns Alfred automatic-cache metadata.
     pub fn cache(&self) -> Option<&AutomaticCache> {
         self.cache.as_ref()
     }
 
+    /// Appends an item.
     pub fn push(&mut self, item: Item) {
         self.items.push(item);
     }
 
+    /// Inserts an item at an index.
     pub fn insert(&mut self, index: usize, item: Item) {
         self.items.insert(index, item);
     }
 
+    /// Extends the collection with items.
     pub fn extend<I>(&mut self, items: I)
     where
         I: IntoIterator<Item = Item>,
@@ -93,18 +113,22 @@ impl Items {
         self.items.extend(items);
     }
 
+    /// Removes all items.
     pub fn clear(&mut self) {
         self.items.clear();
     }
 
+    /// Returns the number of items.
     pub fn len(&self) -> usize {
         self.items.len()
     }
 
+    /// Returns whether the collection is empty.
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
 
+    /// Iterates over the items.
     pub fn iter(&self) -> std::slice::Iter<'_, Item> {
         self.items.iter()
     }

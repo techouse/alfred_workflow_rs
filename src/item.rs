@@ -8,15 +8,20 @@ use crate::{Action, Error, Result};
 
 type ModifierMap = BTreeMap<String, Modifier>;
 
+/// Alfred item type.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum ItemType {
+    /// Default Alfred result item.
     #[default]
     Default,
+    /// File result item with Alfred file checks.
     File,
+    /// File result item without Alfred file checks.
     FileSkipcheck,
 }
 
 impl ItemType {
+    /// Returns the Alfred wire string for this type.
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Default => "default",
@@ -52,13 +57,17 @@ impl<'de> Deserialize<'de> for ItemType {
     }
 }
 
+/// Alfred icon type.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum IconType {
+    /// Treat the path as a file whose icon should be displayed.
     FileIcon,
+    /// Treat the path as a UTI or file extension.
     FileType,
 }
 
 impl IconType {
+    /// Returns the Alfred wire string for this icon type.
     pub fn as_str(self) -> &'static str {
         match self {
             Self::FileIcon => "fileicon",
@@ -92,6 +101,7 @@ impl<'de> Deserialize<'de> for IconType {
     }
 }
 
+/// Alfred result icon metadata.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Icon {
     path: String,
@@ -100,6 +110,7 @@ pub struct Icon {
 }
 
 impl Icon {
+    /// Creates an icon from a path.
     pub fn new(path: impl Into<String>) -> Self {
         Self {
             path: path.into(),
@@ -107,20 +118,24 @@ impl Icon {
         }
     }
 
+    /// Sets the optional Alfred icon type.
     pub fn with_type(mut self, icon_type: IconType) -> Self {
         self.icon_type = Some(icon_type);
         self
     }
 
+    /// Returns the icon path.
     pub fn path(&self) -> &str {
         &self.path
     }
 
+    /// Returns the optional Alfred icon type.
     pub fn icon_type(&self) -> Option<IconType> {
         self.icon_type
     }
 }
 
+/// Alfred copy and large-type text metadata.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ItemText {
     copy: String,
@@ -129,6 +144,7 @@ pub struct ItemText {
 }
 
 impl ItemText {
+    /// Creates text metadata with a copy value.
     pub fn new(copy: impl Into<String>) -> Self {
         Self {
             copy: copy.into(),
@@ -136,30 +152,40 @@ impl ItemText {
         }
     }
 
+    /// Sets the optional Alfred `largetype` value.
     pub fn with_large_type(mut self, large_type: impl Into<String>) -> Self {
         self.large_type = Some(large_type.into());
         self
     }
 
+    /// Returns the copy text.
     pub fn copy(&self) -> &str {
         &self.copy
     }
 
+    /// Returns the optional large-type text.
     pub fn large_type(&self) -> Option<&str> {
         self.large_type.as_deref()
     }
 }
 
+/// Alfred modifier key.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ModifierKey {
+    /// Command key.
     Cmd,
+    /// Control key.
     Ctrl,
+    /// Option/Alt key.
     Alt,
+    /// Shift key.
     Shift,
+    /// Function key.
     Fn,
 }
 
 impl ModifierKey {
+    /// Returns the Alfred wire string for this key.
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Cmd => "cmd",
@@ -205,6 +231,7 @@ impl<'de> Deserialize<'de> for ModifierKey {
     }
 }
 
+/// Alternate item properties shown when modifier keys are held.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Modifier {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -218,42 +245,51 @@ pub struct Modifier {
 }
 
 impl Modifier {
+    /// Creates a modifier with Alfred's default `valid = true`.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Sets the modifier argument.
     pub fn with_arg(mut self, arg: impl Into<String>) -> Self {
         self.arg = Some(arg.into());
         self
     }
 
+    /// Sets the modifier subtitle.
     pub fn with_subtitle(mut self, subtitle: impl Into<String>) -> Self {
         self.subtitle = Some(subtitle.into());
         self
     }
 
+    /// Sets the modifier icon.
     pub fn with_icon(mut self, icon: Icon) -> Self {
         self.icon = Some(icon);
         self
     }
 
+    /// Sets whether the modifier result is valid.
     pub fn with_valid(mut self, valid: bool) -> Self {
         self.valid = valid;
         self
     }
 
+    /// Returns the modifier argument.
     pub fn arg(&self) -> Option<&str> {
         self.arg.as_deref()
     }
 
+    /// Returns the modifier subtitle.
     pub fn subtitle(&self) -> Option<&str> {
         self.subtitle.as_deref()
     }
 
+    /// Returns the modifier icon.
     pub fn icon(&self) -> Option<&Icon> {
         self.icon.as_ref()
     }
 
+    /// Returns whether the modifier result is valid.
     pub fn valid(&self) -> bool {
         self.valid
     }
@@ -274,6 +310,21 @@ fn default_modifier_valid() -> bool {
     true
 }
 
+/// Alfred Script Filter result item.
+///
+/// ```
+/// use alfred_workflow_rs::{Item, Result};
+///
+/// # fn main() -> Result<()> {
+/// let item = Item::builder("Open URL")
+///     .arg("https://www.example.com")
+///     .valid(true)
+///     .build()?;
+///
+/// assert_eq!(item.arg(), Some("https://www.example.com"));
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Item {
     title: String,
@@ -292,6 +343,7 @@ pub struct Item {
 }
 
 impl Item {
+    /// Creates an item with a title and Alfred default fields.
     pub fn new(title: impl Into<String>) -> Self {
         Self {
             title: title.into(),
@@ -310,121 +362,148 @@ impl Item {
         }
     }
 
+    /// Creates an item with an argument.
     pub fn with_arg(title: impl Into<String>, arg: impl Into<String>) -> Self {
         Self::new(title).set_arg(arg)
     }
 
+    /// Creates an item with an action.
     pub fn with_action(title: impl Into<String>, action: impl Into<Action>) -> Self {
         Self::new(title).set_action(action)
     }
 
+    /// Creates a builder for fallible item construction.
     pub fn builder(title: impl Into<String>) -> ItemBuilder {
         ItemBuilder::new(title)
     }
 
+    /// Returns the item title.
     pub fn title(&self) -> &str {
         &self.title
     }
 
+    /// Returns the item type.
     pub fn item_type(&self) -> ItemType {
         self.item_type
     }
 
+    /// Returns whether the item is valid.
     pub fn valid(&self) -> bool {
         self.valid
     }
 
+    /// Returns the optional subtitle.
     pub fn subtitle(&self) -> Option<&str> {
         self.subtitle.as_deref()
     }
 
+    /// Returns the optional argument.
     pub fn arg(&self) -> Option<&str> {
         self.arg.as_deref()
     }
 
+    /// Returns the optional autocomplete value.
     pub fn autocomplete(&self) -> Option<&str> {
         self.autocomplete.as_deref()
     }
 
+    /// Returns the optional Alfred result UID.
     pub fn uid(&self) -> Option<&str> {
         self.uid.as_deref()
     }
 
+    /// Returns the optional icon.
     pub fn icon(&self) -> Option<&Icon> {
         self.icon.as_ref()
     }
 
+    /// Returns the optional copy/large-type text metadata.
     pub fn text(&self) -> Option<&ItemText> {
         self.text.as_ref()
     }
 
+    /// Returns the optional Alfred `quicklookurl`.
     pub fn quick_look_url(&self) -> Option<&str> {
         self.quick_look_url.as_deref()
     }
 
+    /// Returns the optional Alfred match text.
     pub fn match_text(&self) -> Option<&str> {
         self.match_text.as_deref()
     }
 
+    /// Returns modifier entries keyed by canonical Alfred key combinations.
     pub fn modifiers(&self) -> Option<&BTreeMap<String, Modifier>> {
         self.mods.as_ref()
     }
 
+    /// Returns the optional action.
     pub fn action(&self) -> Option<&Action> {
         self.action.as_ref()
     }
 
+    /// Sets the item type.
     pub fn set_item_type(mut self, item_type: ItemType) -> Self {
         self.item_type = item_type;
         self
     }
 
+    /// Sets whether the item is valid.
     pub fn set_valid(mut self, valid: bool) -> Self {
         self.valid = valid;
         self
     }
 
+    /// Sets the subtitle.
     pub fn set_subtitle(mut self, subtitle: impl Into<String>) -> Self {
         self.subtitle = Some(subtitle.into());
         self
     }
 
+    /// Sets the argument and clears any action.
     pub fn set_arg(mut self, arg: impl Into<String>) -> Self {
         self.arg = Some(arg.into());
         self.action = None;
         self
     }
 
+    /// Sets the autocomplete value.
     pub fn set_autocomplete(mut self, autocomplete: impl Into<String>) -> Self {
         self.autocomplete = Some(autocomplete.into());
         self
     }
 
+    /// Sets the Alfred result UID.
     pub fn set_uid(mut self, uid: impl Into<String>) -> Self {
         self.uid = Some(uid.into());
         self
     }
 
+    /// Sets the icon.
     pub fn set_icon(mut self, icon: Icon) -> Self {
         self.icon = Some(icon);
         self
     }
 
+    /// Sets copy/large-type text metadata.
     pub fn set_text(mut self, text: ItemText) -> Self {
         self.text = Some(text);
         self
     }
 
+    /// Sets Alfred's `quicklookurl`.
     pub fn set_quick_look_url(mut self, quick_look_url: impl Into<String>) -> Self {
         self.quick_look_url = Some(quick_look_url.into());
         self
     }
 
+    /// Sets Alfred match text.
     pub fn set_match_text(mut self, match_text: impl Into<String>) -> Self {
         self.match_text = Some(match_text.into());
         self
     }
 
+    /// Adds or replaces a modifier entry.
     pub fn try_set_modifier<I>(mut self, keys: I, modifier: Modifier) -> Result<Self>
     where
         I: IntoIterator<Item = ModifierKey>,
@@ -436,6 +515,7 @@ impl Item {
         Ok(self)
     }
 
+    /// Sets the action and clears any argument.
     pub fn set_action(mut self, action: impl Into<Action>) -> Self {
         self.action = Some(action.into());
         self.arg = None;
@@ -489,6 +569,10 @@ struct ItemParts {
     action: Option<Action>,
 }
 
+/// Builder for fallible item construction.
+///
+/// The builder validates the Dart parity rule that an item cannot contain both
+/// `arg` and `action`.
 pub struct ItemBuilder {
     parts: ItemParts,
 }
@@ -503,56 +587,67 @@ impl ItemBuilder {
         }
     }
 
+    /// Sets the item type.
     pub fn item_type(mut self, item_type: ItemType) -> Self {
         self.parts.item_type = item_type;
         self
     }
 
+    /// Sets whether the item is valid.
     pub fn valid(mut self, valid: bool) -> Self {
         self.parts.valid = valid;
         self
     }
 
+    /// Sets the subtitle.
     pub fn subtitle(mut self, subtitle: impl Into<String>) -> Self {
         self.parts.subtitle = Some(subtitle.into());
         self
     }
 
+    /// Sets the argument.
     pub fn arg(mut self, arg: impl Into<String>) -> Self {
         self.parts.arg = Some(arg.into());
         self
     }
 
+    /// Sets the autocomplete value.
     pub fn autocomplete(mut self, autocomplete: impl Into<String>) -> Self {
         self.parts.autocomplete = Some(autocomplete.into());
         self
     }
 
+    /// Sets the Alfred result UID.
     pub fn uid(mut self, uid: impl Into<String>) -> Self {
         self.parts.uid = Some(uid.into());
         self
     }
 
+    /// Sets the icon.
     pub fn icon(mut self, icon: Icon) -> Self {
         self.parts.icon = Some(icon);
         self
     }
 
+    /// Sets copy/large-type text metadata.
     pub fn text(mut self, text: ItemText) -> Self {
         self.parts.text = Some(text);
         self
     }
 
+    /// Sets Alfred's `quicklookurl`.
     pub fn quick_look_url(mut self, quick_look_url: impl Into<String>) -> Self {
         self.parts.quick_look_url = Some(quick_look_url.into());
         self
     }
 
+    /// Sets Alfred match text.
     pub fn match_text(mut self, match_text: impl Into<String>) -> Self {
         self.parts.match_text = Some(match_text.into());
         self
     }
 
+    /// Adds or replaces a modifier entry.
     pub fn try_modifier<I>(mut self, keys: I, modifier: Modifier) -> Result<Self>
     where
         I: IntoIterator<Item = ModifierKey>,
@@ -565,11 +660,13 @@ impl ItemBuilder {
         Ok(self)
     }
 
+    /// Sets the action.
     pub fn action(mut self, action: impl Into<Action>) -> Self {
         self.parts.action = Some(action.into());
         self
     }
 
+    /// Builds the item, validating incompatible fields.
     pub fn build(self) -> Result<Item> {
         Item::try_from_parts(self.parts)
     }

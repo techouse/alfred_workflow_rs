@@ -220,6 +220,41 @@ fn cache_key_suppresses_constructor_automatic_cache() -> Result<(), Box<dyn std:
 }
 
 #[test]
+fn workflow_builder_configures_render_and_cache_flags() -> Result<(), Box<dyn std::error::Error>> {
+    let workflow = Workflow::builder()
+        .disable_alfred_smart_result_ordering(true)
+        .skip_knowledge(Some(false))
+        .cache_time_to_live(Some(300))
+        .use_automatic_cache(true)
+        .build();
+
+    assert!(workflow.disable_alfred_smart_result_ordering());
+    assert_eq!(workflow.skip_knowledge(), Some(false));
+    assert_eq!(workflow.cache_time_to_live(), Some(300));
+    assert_eq!(
+        workflow.automatic_cache().map(|cache| cache.seconds()),
+        Some(300)
+    );
+
+    Ok(())
+}
+
+#[test]
+fn workflow_builder_cache_key_suppresses_automatic_cache() -> Result<(), Box<dyn std::error::Error>>
+{
+    let cache = AutomaticCache::try_with_loose_reload(300, Some(false))?;
+    let workflow = Workflow::builder()
+        .automatic_cache(cache)
+        .cache_key(Some("query"))
+        .build();
+
+    assert_eq!(workflow.cache_key(), Some("query"));
+    assert_eq!(workflow.automatic_cache(), None);
+
+    Ok(())
+}
+
+#[test]
 fn cache_time_to_live_validates_range_and_affects_generated_cache()
 -> Result<(), Box<dyn std::error::Error>> {
     let mut workflow = Workflow::new();
