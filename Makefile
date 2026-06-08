@@ -4,11 +4,13 @@ CARGO ?= cargo
 CARGO_MSRV ?= cargo +1.88.0
 RUSTDOCFLAGS_DOCS ?= -D warnings --cfg docsrs
 PACKAGE_LIST ?= /tmp/alfred-workflow-rs-package-list.txt
+PACKAGE_REQUIRED_FILES ?= Cargo.lock Cargo.toml LICENSE README.md examples/auto_update.rs examples/basic.rs examples/caching.rs examples/common/mod.rs src/lib.rs
+PACKAGE_EXCLUDED_PATTERN ?= ^(\.codacy\.yml$$|\.github/|\.gitattributes$$|\.gitignore$$|\.history/|\.vscode/|AGENTS\.md$$|about\.hbs$$|about\.toml$$|CODE-OF-CONDUCT\.md$$|docs/|fuzz/|install\.sh$$|Makefile$$|RELEASING\.md$$|SPEC\.md$$|scripts/|src/.*/tests\.rs$$|src/.*/tests/|SECURITY\.md$$|tests/|THIRD-PARTY-LICENSES\.md$$)
 
 .PHONY: help build build-release clean fmt fmt-check clippy test test-all \
 	test-doc coverage coverage-html msrv docs docs-missing handoff-check \
-	package-list package-check package-check-clean package-check-offline publish-dry-run \
-	version-check release-check pre-release ci
+	package-list package-contents-check package-check package-check-clean package-check-offline \
+	publish-dry-run version-check release-check pre-release ci
 
 help: ## Show available targets
 	@awk 'BEGIN {FS = ":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / {printf "%-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
@@ -76,58 +78,25 @@ package-list: ## List files included in the published crate package
 	$(CARGO) package --locked --list --allow-dirty > $(PACKAGE_LIST)
 	@cat $(PACKAGE_LIST)
 
+package-contents-check:
+	@for file in $(PACKAGE_REQUIRED_FILES); do \
+		grep -q "^$$file$$" $(PACKAGE_LIST) || { echo "package is missing $$file" >&2; exit 1; }; \
+	done
+	@! grep -E '$(PACKAGE_EXCLUDED_PATTERN)' $(PACKAGE_LIST) || { echo "package contains excluded files" >&2; exit 1; }
+
 package-check: ## Verify crates.io package creation during development
 	$(CARGO) package --locked --list --allow-dirty > $(PACKAGE_LIST)
-	@grep -q '^README.md$$' $(PACKAGE_LIST)
-	@grep -q '^LICENSE$$' $(PACKAGE_LIST)
-	@grep -q '^SPEC.md$$' $(PACKAGE_LIST)
-	@grep -q '^docs/SPIKE_FINDINGS.md$$' $(PACKAGE_LIST)
-	@grep -q '^docs/DART_TEST_PARITY.md$$' $(PACKAGE_LIST)
-	@grep -q '^docs/DART_TO_RUST_API.md$$' $(PACKAGE_LIST)
-	@grep -q '^docs/DEPENDENCY_REVIEW.md$$' $(PACKAGE_LIST)
-	@grep -q '^scripts/regenerate_dart_expected_json.sh$$' $(PACKAGE_LIST)
-	@grep -q '^tests/fixtures/README.md$$' $(PACKAGE_LIST)
-	@grep -q '^tests/fixtures/info.plist$$' $(PACKAGE_LIST)
-	@grep -q '^tests/fixtures/prefs.plist$$' $(PACKAGE_LIST)
-	@grep -q '^tests/fixtures/script_filter_full.json$$' $(PACKAGE_LIST)
-	@grep -q '^tests/fixtures/script_filter_exact_order.json$$' $(PACKAGE_LIST)
-	@grep -q '^tests/fixtures/github_release.json$$' $(PACKAGE_LIST)
+	$(MAKE) package-contents-check
 	$(CARGO) package --locked --allow-dirty
 
 package-check-clean: ## Verify clean crates.io package creation
 	$(CARGO) package --locked --list > $(PACKAGE_LIST)
-	@grep -q '^README.md$$' $(PACKAGE_LIST)
-	@grep -q '^LICENSE$$' $(PACKAGE_LIST)
-	@grep -q '^SPEC.md$$' $(PACKAGE_LIST)
-	@grep -q '^docs/SPIKE_FINDINGS.md$$' $(PACKAGE_LIST)
-	@grep -q '^docs/DART_TEST_PARITY.md$$' $(PACKAGE_LIST)
-	@grep -q '^docs/DART_TO_RUST_API.md$$' $(PACKAGE_LIST)
-	@grep -q '^docs/DEPENDENCY_REVIEW.md$$' $(PACKAGE_LIST)
-	@grep -q '^scripts/regenerate_dart_expected_json.sh$$' $(PACKAGE_LIST)
-	@grep -q '^tests/fixtures/README.md$$' $(PACKAGE_LIST)
-	@grep -q '^tests/fixtures/info.plist$$' $(PACKAGE_LIST)
-	@grep -q '^tests/fixtures/prefs.plist$$' $(PACKAGE_LIST)
-	@grep -q '^tests/fixtures/script_filter_full.json$$' $(PACKAGE_LIST)
-	@grep -q '^tests/fixtures/script_filter_exact_order.json$$' $(PACKAGE_LIST)
-	@grep -q '^tests/fixtures/github_release.json$$' $(PACKAGE_LIST)
+	$(MAKE) package-contents-check
 	$(CARGO) package --locked
 
 package-check-offline: ## Verify clean crate package creation using only local cache
 	$(CARGO) package --locked --list --offline > $(PACKAGE_LIST)
-	@grep -q '^README.md$$' $(PACKAGE_LIST)
-	@grep -q '^LICENSE$$' $(PACKAGE_LIST)
-	@grep -q '^SPEC.md$$' $(PACKAGE_LIST)
-	@grep -q '^docs/SPIKE_FINDINGS.md$$' $(PACKAGE_LIST)
-	@grep -q '^docs/DART_TEST_PARITY.md$$' $(PACKAGE_LIST)
-	@grep -q '^docs/DART_TO_RUST_API.md$$' $(PACKAGE_LIST)
-	@grep -q '^docs/DEPENDENCY_REVIEW.md$$' $(PACKAGE_LIST)
-	@grep -q '^scripts/regenerate_dart_expected_json.sh$$' $(PACKAGE_LIST)
-	@grep -q '^tests/fixtures/README.md$$' $(PACKAGE_LIST)
-	@grep -q '^tests/fixtures/info.plist$$' $(PACKAGE_LIST)
-	@grep -q '^tests/fixtures/prefs.plist$$' $(PACKAGE_LIST)
-	@grep -q '^tests/fixtures/script_filter_full.json$$' $(PACKAGE_LIST)
-	@grep -q '^tests/fixtures/script_filter_exact_order.json$$' $(PACKAGE_LIST)
-	@grep -q '^tests/fixtures/github_release.json$$' $(PACKAGE_LIST)
+	$(MAKE) package-contents-check
 	$(CARGO) package --locked --offline
 
 publish-dry-run: ## Verify crates.io publishability without uploading
