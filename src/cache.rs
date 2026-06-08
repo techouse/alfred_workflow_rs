@@ -38,6 +38,11 @@ impl<T> FileCache<T> {
     /// Default cache name used for query result caches.
     pub const DEFAULT_NAME: &'static str = "query_cache";
 
+    /// Maximum number of attempts to open the on-disk cache store.
+    const CACHE_OPEN_MAX_ATTEMPTS: u32 = 5;
+    /// Base backoff between disk cache open attempts, in milliseconds.
+    const CACHE_OPEN_BACKOFF_MILLIS: u64 = 20;
+
     /// Creates a cache at the default path.
     pub fn new() -> Self {
         Self::with_path(Self::default_path())
@@ -295,12 +300,33 @@ where
     }
 
     fn build_cache(&self) -> Result<DiskCache<String, T>> {
-        DiskCache::new(&self.name)
-            .disk_directory(&self.path)
-            .ttl(std::time::Duration::from_secs(self.time_to_live_seconds))
-            .sync_to_disk_on_cache_change(true)
-            .build()
-            .map_err(cache_error)
+        // The underlying `sled` store takes an exclusive file lock on the cache
+        // directory. When a previous `DiskCache` from this same `FileCache` was
+        // just dropped, that lock can still be held momentarily (sled releases
+        // it from a background thread), which surfaces as a transient
+        // "Storage connection error" when the next instance is opened. Retry a
+        // few times with a short backoff so these races do not fail callers.
+        let mut last_error = None;
+        for attempt in 0..Self::CACHE_OPEN_MAX_ATTEMPTS {
+            match DiskCache::new(&self.name)
+                .disk_directory(&self.path)
+                .ttl(std::time::Duration::from_secs(self.time_to_live_seconds))
+                .sync_to_disk_on_cache_change(true)
+                .build()
+            {
+                Ok(cache) => return Ok(cache),
+                Err(error) => {
+                    last_error = Some(cache_error(error));
+                    if attempt + 1 < Self::CACHE_OPEN_MAX_ATTEMPTS {
+                        std::thread::sleep(std::time::Duration::from_millis(
+                            Self::CACHE_OPEN_BACKOFF_MILLIS * u64::from(attempt + 1),
+                        ));
+                    }
+                }
+            }
+        }
+
+        Err(last_error.unwrap_or_else(|| cache_error("failed to open disk cache")))
     }
 }
 
