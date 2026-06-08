@@ -190,7 +190,7 @@ impl Updater {
 
         Ok(UpdaterBuilder {
             github_repository_url,
-            current_version: parse_version_tag(current_version)?,
+            current_version: Version::parse(current_version)?,
             update_interval: Duration::ZERO,
             file_cache: None,
             github_api_base_url: Url::parse("https://api.github.com")?,

@@ -179,6 +179,16 @@ fn updater_new_rejects_non_github_repository_url()
 }
 
 #[test]
+fn updater_new_requires_strict_current_semver()
+-> std::result::Result<(), Box<dyn std::error::Error>> {
+    for current_version in ["v1.0.0", "V1.0.0", "x1.0.0", "name-1.0.0"] {
+        assert!(Updater::new(github_url("/example/workflow")?, current_version).is_err());
+    }
+
+    Ok(())
+}
+
+#[test]
 fn updater_default_cache_matches_dart_update_interval_defaults()
 -> std::result::Result<(), Box<dyn std::error::Error>> {
     let updater = Updater::new(github_url("/example/workflow")?, "1.0.0")?;
