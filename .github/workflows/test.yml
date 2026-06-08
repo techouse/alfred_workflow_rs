@@ -1,0 +1,176 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+    branches:
+      - master
+      - main
+  workflow_call:
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  msrv-meta:
+    name: Read MSRV
+    runs-on: ubuntu-latest
+    outputs:
+      msrv: ${{ steps.read-msrv.outputs.msrv }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - id: read-msrv
+        name: Read rust-version from Cargo.toml
+        run: |
+          set -euo pipefail
+          msrv="$(
+            awk -F'"' '
+              /^[[:space:]]*\[package\][[:space:]]*$/ { in_package = 1; next }
+              /^[[:space:]]*\[/ { in_package = 0 }
+              in_package && /^[[:space:]]*rust-version[[:space:]]*=/ { print $2; exit }
+            ' Cargo.toml
+          )"
+          if [[ -z "$msrv" ]]; then
+            echo "failed to read package.rust-version from Cargo.toml" >&2
+            exit 1
+          fi
+          echo "msrv=${msrv}" >> "$GITHUB_OUTPUT"
+
+  stable:
+    name: Stable test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Test
+        run: cargo test --all-targets --all-features --locked
+
+  quality:
+    name: Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format check
+        run: make fmt-check
+
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features --locked -- -D warnings
+
+      - name: Examples
+        run: cargo test --examples --locked
+
+      - name: Doc tests
+        run: cargo test --doc --locked
+
+      - name: Public docs
+        env:
+          RUSTDOCFLAGS: -D warnings --cfg docsrs
+        run: cargo doc --locked --no-deps --lib
+
+      - name: Missing public docs
+        env:
+          RUSTFLAGS: -D missing_docs
+        run: cargo check --lib --all-features --locked
+
+  msrv:
+    name: MSRV (${{ needs.msrv-meta.outputs.msrv }})
+    needs: msrv-meta
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: ${{ needs.msrv-meta.outputs.msrv }}
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Test on MSRV
+        run: cargo test --locked
+
+  package:
+    name: Package
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Package check
+        run: make package-check
+
+  ci-required:
+    name: CI Required
+    if: ${{ always() }}
+    needs:
+      - stable
+      - quality
+      - msrv
+      - package
+    runs-on: ubuntu-latest
+    env:
+      STABLE_RESULT: ${{ needs.stable.result }}
+      QUALITY_RESULT: ${{ needs.quality.result }}
+      MSRV_RESULT: ${{ needs.msrv.result }}
+      PACKAGE_RESULT: ${{ needs.package.result }}
+
+    steps:
+      - name: Verify required job results
+        run: |
+          set -euo pipefail
+
+          results=(
+            "stable:${STABLE_RESULT}"
+            "quality:${QUALITY_RESULT}"
+            "msrv:${MSRV_RESULT}"
+            "package:${PACKAGE_RESULT}"
+          )
+
+          failed=0
+          for entry in "${results[@]}"; do
+            job="${entry%%:*}"
+            result="${entry#*:}"
+            echo "${job}: ${result}"
+            if [[ "${result}" != "success" ]]; then
+              echo "::error::${job} finished with result '${result}'"
+              failed=1
+            fi
+          done
+
+          exit "${failed}"

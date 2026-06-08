@@ -53,10 +53,12 @@ docs-missing: ## Check public library docs with missing_docs denied
 
 handoff-check: ## Check Rust port handoff docs are present and internally anchored
 	@test -f README.md
+	@test -f LICENSE
 	@test -f SPEC.md
 	@test -f docs/SPIKE_FINDINGS.md
 	@test -f docs/DART_TEST_PARITY.md
 	@test -f docs/DART_TO_RUST_API.md
+	@test -f docs/DEPENDENCY_REVIEW.md
 	@grep -q 'v1.0.0-rc.1' SPEC.md
 	@grep -q 'alfred_workflow_rs' README.md
 	@grep -q 'test/unit/alfred_workflow_test.dart' docs/DART_TEST_PARITY.md
@@ -71,10 +73,12 @@ package-list: ## List files included in the published crate package
 package-check: ## Verify crates.io package creation
 	$(CARGO) package --locked --list --allow-dirty > $(PACKAGE_LIST)
 	@grep -q '^README.md$$' $(PACKAGE_LIST)
+	@grep -q '^LICENSE$$' $(PACKAGE_LIST)
 	@grep -q '^SPEC.md$$' $(PACKAGE_LIST)
 	@grep -q '^docs/SPIKE_FINDINGS.md$$' $(PACKAGE_LIST)
 	@grep -q '^docs/DART_TEST_PARITY.md$$' $(PACKAGE_LIST)
 	@grep -q '^docs/DART_TO_RUST_API.md$$' $(PACKAGE_LIST)
+	@grep -q '^docs/DEPENDENCY_REVIEW.md$$' $(PACKAGE_LIST)
 	@grep -q '^scripts/regenerate_dart_expected_json.sh$$' $(PACKAGE_LIST)
 	@grep -q '^tests/fixtures/README.md$$' $(PACKAGE_LIST)
 	@grep -q '^tests/fixtures/info.plist$$' $(PACKAGE_LIST)
@@ -87,10 +91,12 @@ package-check: ## Verify crates.io package creation
 package-check-offline: ## Verify crate package creation using only local cache
 	$(CARGO) package --locked --list --allow-dirty > $(PACKAGE_LIST)
 	@grep -q '^README.md$$' $(PACKAGE_LIST)
+	@grep -q '^LICENSE$$' $(PACKAGE_LIST)
 	@grep -q '^SPEC.md$$' $(PACKAGE_LIST)
 	@grep -q '^docs/SPIKE_FINDINGS.md$$' $(PACKAGE_LIST)
 	@grep -q '^docs/DART_TEST_PARITY.md$$' $(PACKAGE_LIST)
 	@grep -q '^docs/DART_TO_RUST_API.md$$' $(PACKAGE_LIST)
+	@grep -q '^docs/DEPENDENCY_REVIEW.md$$' $(PACKAGE_LIST)
 	@grep -q '^scripts/regenerate_dart_expected_json.sh$$' $(PACKAGE_LIST)
 	@grep -q '^tests/fixtures/README.md$$' $(PACKAGE_LIST)
 	@grep -q '^tests/fixtures/info.plist$$' $(PACKAGE_LIST)
