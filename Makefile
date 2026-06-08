@@ -1,13 +1,14 @@
 .DEFAULT_GOAL := help
 
 CARGO ?= cargo
+CARGO_MSRV ?= cargo +1.88.0
 RUSTDOCFLAGS_DOCS ?= -D warnings --cfg docsrs
 PACKAGE_LIST ?= /tmp/alfred-workflow-rs-package-list.txt
 
 .PHONY: help build build-release clean fmt fmt-check clippy test test-all \
-	test-doc coverage coverage-html docs docs-missing handoff-check \
+	test-doc coverage coverage-html msrv docs docs-missing handoff-check \
 	package-list package-check package-check-clean package-check-offline publish-dry-run \
-	release-check pre-release ci
+	version-check release-check pre-release ci
 
 help: ## Show available targets
 	@awk 'BEGIN {FS = ":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / {printf "%-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
@@ -44,6 +45,9 @@ coverage: ## Generate an LCOV coverage report (requires cargo-llvm-cov)
 
 coverage-html: ## Generate an HTML coverage report (requires cargo-llvm-cov)
 	$(CARGO) llvm-cov --all-features --locked --lib --tests --html
+
+msrv: ## Run tests on the crate MSRV (requires toolchain 1.88.0)
+	$(CARGO_MSRV) test --locked -- --test-threads=1 --nocapture
 
 docs: ## Build library docs with docs.rs warning settings
 	RUSTDOCFLAGS='$(RUSTDOCFLAGS_DOCS)' $(CARGO) doc --locked --no-deps --lib
@@ -129,7 +133,16 @@ package-check-offline: ## Verify clean crate package creation using only local c
 publish-dry-run: ## Verify crates.io publishability without uploading
 	$(CARGO) publish --dry-run --locked
 
+version-check: ## Check release version references agree
+	@version="$$(sed -n 's/^version = "\([^"]*\)"$$/\1/p' Cargo.toml | head -n 1)"; \
+	if [ -z "$$version" ]; then echo "Could not read version from Cargo.toml" >&2; exit 1; fi; \
+	awk -v version="$$version" 'BEGIN { found = 0; in_package = 0 } /^\[\[package\]\]/ { in_package = 0 } /^name = "alfred_workflow_rs"$$/ { in_package = 1 } in_package && $$0 == "version = \"" version "\"" { found = 1 } END { exit !found }' Cargo.lock || { echo "Cargo.lock does not contain alfred_workflow_rs $$version" >&2; exit 1; }; \
+	grep -q "^alfred_workflow_rs = \"$$version\"$$" README.md || { echo "README.md install snippet is not using $$version" >&2; exit 1; }; \
+	grep -q "v$$version" SPEC.md || { echo "SPEC.md is missing v$$version" >&2; exit 1; }; \
+	printf 'version-check: %s\n' "$$version"
+
 release-check: ## Run release readiness audit checks
+	$(MAKE) version-check
 	$(MAKE) docs
 	$(MAKE) docs-missing
 	$(MAKE) handoff-check
@@ -144,6 +157,8 @@ pre-release: ## Run the full local gate before tagging a release
 	$(MAKE) test-doc
 	$(MAKE) docs
 	$(MAKE) docs-missing
+	$(MAKE) msrv
+	$(MAKE) version-check
 	$(MAKE) handoff-check
 	$(MAKE) package-check-clean
 	$(MAKE) publish-dry-run
@@ -154,4 +169,5 @@ ci: ## Run the main local CI checks
 	$(MAKE) clippy
 	$(MAKE) test
 	$(MAKE) test-doc
+	$(MAKE) version-check
 	$(MAKE) handoff-check

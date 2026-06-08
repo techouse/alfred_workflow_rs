@@ -190,7 +190,7 @@ impl Updater {
 
         Ok(UpdaterBuilder {
             github_repository_url,
-            current_version: Version::parse(current_version)?,
+            current_version: parse_current_version(current_version)?,
             update_interval: Duration::ZERO,
             file_cache: None,
             github_api_base_url: Url::parse("https://api.github.com")?,
@@ -401,6 +401,16 @@ impl UpdaterBuilder {
 pub fn parse_version_tag(value: &str) -> Result<Version> {
     let version = find_version_core(value).unwrap_or(value);
     Ok(Version::parse(version)?)
+}
+
+fn parse_current_version(value: &str) -> Result<Version> {
+    if !value.as_bytes().first().is_some_and(u8::is_ascii_digit) {
+        return Err(Error::InvalidCurrentVersion {
+            version: value.to_owned(),
+        });
+    }
+
+    Ok(Version::parse(value)?)
 }
 
 fn find_version_core(value: &str) -> Option<&str> {

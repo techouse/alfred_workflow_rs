@@ -55,6 +55,13 @@ pub enum Error {
         url: String,
     },
 
+    /// GitHub updater current version was not a strict semantic version.
+    #[error("current version must be a strict semantic version, got `{version}`")]
+    InvalidCurrentVersion {
+        /// Provided current version.
+        version: String,
+    },
+
     /// Version parsing failed.
     #[error("failed to parse version")]
     Version(#[from] semver::Error),
