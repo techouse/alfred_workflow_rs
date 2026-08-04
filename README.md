@@ -1,18 +1,18 @@
 # alfred_workflow_rs
 
-Rust port of the Dart [`alfred_workflow`](https://github.com/techouse/alfred_workflow)
-package for building Alfred workflow Script Filter output, reading Alfred user
-configuration plists, caching workflow results, and checking GitHub releases for
-workflow updates.
+[![CI](https://github.com/techouse/alfred_workflow_rs/actions/workflows/test.yml/badge.svg)](https://github.com/techouse/alfred_workflow_rs/actions/workflows/test.yml)
+[![crates.io](https://img.shields.io/crates/v/alfred_workflow_rs.svg)](https://crates.io/crates/alfred_workflow_rs)
+[![docs.rs](https://docs.rs/alfred_workflow_rs/badge.svg)](https://docs.rs/alfred_workflow_rs)
 
-The port is guided by Dart package `alfred_workflow` `1.2.4` and its test suite.
-Behavioral parity is tracked in [`docs/DART_TEST_PARITY.md`](docs/DART_TEST_PARITY.md).
+Build Alfred workflows in Rust with Script Filter output, file caching, plist user
+configuration, and GitHub release updates. This crate is a Rust port of the Dart
+[`alfred_workflow`](https://github.com/techouse/alfred_workflow) package.
 
 ## Install
 
 ```toml
 [dependencies]
-alfred_workflow_rs = "1.0.0-rc.2"
+alfred_workflow_rs = "1.0.0"
 ```
 
 The crate requires Rust `1.88` or newer.
@@ -121,13 +121,8 @@ cargo run --example basic -- --query "hello"
 ```sh
 make ci
 cargo test --examples --locked
-make package-check
+make package-test
 ```
 
-Release-readiness notes:
-
-- [`docs/DART_TO_RUST_API.md`](docs/DART_TO_RUST_API.md): public API mapping and
-  intentional Dart divergences.
-- [`docs/DEPENDENCY_REVIEW.md`](docs/DEPENDENCY_REVIEW.md): dependency purpose
-  and license review.
-- [`tests/fixtures/README.md`](tests/fixtures/README.md): fixture provenance.
+Published API documentation is available on [docs.rs](https://docs.rs/alfred_workflow_rs)
+and [GitHub Pages](https://techouse.github.io/alfred_workflow_rs/).

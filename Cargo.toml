@@ -1,38 +1,26 @@
 [package]
+authors = ["Klemen Tusar <techouse@gmail.com>"]
 name = "alfred_workflow_rs"
-version = "1.0.0-rc.2"
+version = "1.0.0"
 edition = "2024"
 rust-version = "1.88"
-authors = ["Klemen Tusar"]
-description = "Rust port of the Dart alfred_workflow helper library for Alfred workflows."
+description = "Build Alfred workflows in Rust with Script Filter output, caches, plist user configuration, and GitHub updates."
 license = "BSD-3-Clause"
 readme = "README.md"
+repository = "https://github.com/techouse/alfred_workflow_rs"
+homepage = "https://techouse.github.io/alfred_workflow_rs/"
 documentation = "https://docs.rs/alfred_workflow_rs"
 keywords = ["alfred", "workflow", "macos", "script-filter"]
 categories = ["development-tools"]
-exclude = [
-    ".codacy.yml",
-    ".github/",
-    ".gitattributes",
-    ".gitignore",
-    ".history/",
-    ".vscode/**",
-    "AGENTS.md",
-    "about.hbs",
-    "about.toml",
-    "CODE-OF-CONDUCT.md",
-    "docs/",
-    "fuzz/**",
-    "install.sh",
-    "Makefile",
-    "RELEASING.md",
-    "SPEC.md",
-    "scripts/**",
-    "src/**/tests.rs",
-    "src/**/tests/**",
-    "SECURITY.md",
+publish = ["crates-io"]
+include = [
+    "Cargo.lock",
+    "Cargo.toml",
+    "LICENSE",
+    "README.md",
+    "examples/**",
+    "src/**",
     "tests/**",
-    "THIRD-PARTY-LICENSES.md",
 ]
 
 [dependencies]
@@ -50,3 +38,6 @@ url = { version = "2.5", features = ["serde"] }
 mockito = "1.7"
 pretty_assertions = "1.4"
 tempfile = "3.10"
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--cfg", "docsrs"]
