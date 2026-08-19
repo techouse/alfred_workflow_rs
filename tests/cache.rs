@@ -215,6 +215,26 @@ fn file_cache_put_replaces_an_incompatible_cached_value() -> Result<(), Box<dyn 
 }
 
 #[test]
+fn file_cache_remove_evicts_an_incompatible_cached_value() -> Result<(), Box<dyn std::error::Error>>
+{
+    let dir = tempdir()?;
+    seed_incompatible_cache(dir.path(), "test_cache", "query")?;
+    std::fs::write(
+        dir.path().join("test_cache_keys.json"),
+        r#"{"keys":["query"]}"#,
+    )?;
+    let cache = FileCache::<Items>::try_with_config(dir.path(), "test_cache", 5, 60, false)?;
+
+    assert_eq!(cache.remove("query")?, None);
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("test_cache_keys.json"))?,
+        r#"{"keys":[]}"#
+    );
+
+    Ok(())
+}
+
+#[test]
 fn workflow_cache_trait_round_trips_values() -> Result<(), Box<dyn std::error::Error>> {
     fn exercise_cache(
         cache: &impl WorkflowCache<String>,

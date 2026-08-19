@@ -269,11 +269,11 @@ where
         let owned_key = key.to_owned();
         let value = match cache.cache_get(&owned_key) {
             Ok(value) => value,
-            Err(DiskCacheError::CacheDeserializationError(_)) => {
+            Err(error) => {
+                recover_cache_deserialization_error(error)?;
                 cache.cache_delete(&owned_key).map_err(cache_error)?;
                 None
             }
-            Err(error) => return Err(cache_error(error)),
         };
 
         if value.is_some() {
@@ -290,11 +290,11 @@ where
         let cache = self.build_cache()?;
         let previous = match cache.cache_set(key.to_owned(), value) {
             Ok(previous) => previous,
-            Err(DiskCacheError::CacheDeserializationError(_)) => {
+            Err(error) => {
+                recover_cache_deserialization_error(error)?;
                 cache.connection().flush().map_err(cache_error)?;
                 None
             }
-            Err(error) => return Err(cache_error(error)),
         };
 
         for evicted_key in self.record_key_and_evictions(key)? {
@@ -310,11 +310,11 @@ where
         let owned_key = key.to_owned();
         let previous = match cache.cache_remove(&owned_key) {
             Ok(previous) => previous,
-            Err(DiskCacheError::CacheDeserializationError(_)) => {
+            Err(error) => {
+                recover_cache_deserialization_error(error)?;
                 cache.cache_delete(&owned_key).map_err(cache_error)?;
                 None
             }
-            Err(error) => return Err(cache_error(error)),
         };
         self.forget_key(key)?;
         Ok(previous)
@@ -420,4 +420,27 @@ fn validate_time_to_live(seconds: u64) -> Result<()> {
 
 fn cache_error(error: impl std::fmt::Display) -> Error {
     Error::Cache(error.to_string())
+}
+
+fn recover_cache_deserialization_error(error: DiskCacheError) -> Result<()> {
+    match error {
+        DiskCacheError::CacheDeserializationError(_) => Ok(()),
+        error => Err(cache_error(error)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cache_recovery_propagates_non_deserialization_errors() {
+        let error = recover_cache_deserialization_error(DiskCacheError::BackgroundTaskFailed)
+            .expect_err("non-deserialization errors must be propagated");
+
+        assert_eq!(
+            error.to_string(),
+            "failed to access cache: disk cache background task failed"
+        );
+    }
 }
