@@ -1,11 +1,26 @@
+use serde::ser::SerializeMap;
 use serde::{Deserialize, Serialize};
 
 /// Alfred copy and large-type text metadata.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize)]
 pub struct ItemText {
     copy: String,
-    #[serde(rename = "largetype", skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "largetype", default)]
     large_type: Option<String>,
+}
+
+impl Serialize for ItemText {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(1 + usize::from(self.large_type.is_some())))?;
+        map.serialize_entry("copy", &self.copy)?;
+        if let Some(large_type) = &self.large_type {
+            map.serialize_entry("largetype", large_type)?;
+        }
+        map.end()
+    }
 }
 
 impl ItemText {

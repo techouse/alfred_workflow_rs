@@ -1,13 +1,28 @@
+use serde::ser::SerializeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{Error, Result};
 
 /// Alfred Script Filter automatic cache metadata.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AutomaticCache {
     seconds: u64,
-    #[serde(rename = "loosereload", skip_serializing_if = "Option::is_none")]
     loose_reload: Option<bool>,
+}
+
+impl Serialize for AutomaticCache {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut map =
+            serializer.serialize_map(Some(1 + usize::from(self.loose_reload.is_some())))?;
+        map.serialize_entry("seconds", &self.seconds)?;
+        if let Some(loose_reload) = self.loose_reload {
+            map.serialize_entry("loosereload", &loose_reload)?;
+        }
+        map.end()
+    }
 }
 
 impl AutomaticCache {
@@ -56,7 +71,7 @@ impl<'de> Deserialize<'de> for AutomaticCache {
         #[derive(Deserialize)]
         struct Wire {
             seconds: u64,
-            #[serde(rename = "loosereload")]
+            #[serde(rename = "loosereload", default)]
             loose_reload: Option<bool>,
         }
 
