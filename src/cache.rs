@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 
 use cached::ConcurrentCached;
-use cached::stores::DiskCache;
+use cached::stores::{DiskCache, DiskCacheError};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
@@ -266,7 +266,15 @@ where
     /// Returns the value for a key if present and not expired.
     pub fn get(&self, key: &str) -> Result<Option<T>> {
         let cache = self.build_cache()?;
-        let value = cache.cache_get(&key.to_owned()).map_err(cache_error)?;
+        let owned_key = key.to_owned();
+        let value = match cache.cache_get(&owned_key) {
+            Ok(value) => value,
+            Err(DiskCacheError::CacheDeserializationError(_)) => {
+                cache.cache_delete(&owned_key).map_err(cache_error)?;
+                None
+            }
+            Err(error) => return Err(cache_error(error)),
+        };
 
         if value.is_some() {
             self.touch_key(key)?;
@@ -280,12 +288,17 @@ where
     /// Stores a value and returns any previous value.
     pub fn put(&self, key: &str, value: T) -> Result<Option<T>> {
         let cache = self.build_cache()?;
-        let previous = cache
-            .cache_set(key.to_owned(), value)
-            .map_err(cache_error)?;
+        let previous = match cache.cache_set(key.to_owned(), value) {
+            Ok(previous) => previous,
+            Err(DiskCacheError::CacheDeserializationError(_)) => {
+                cache.connection().flush().map_err(cache_error)?;
+                None
+            }
+            Err(error) => return Err(cache_error(error)),
+        };
 
         for evicted_key in self.record_key_and_evictions(key)? {
-            cache.cache_remove(&evicted_key).map_err(cache_error)?;
+            cache.cache_delete(&evicted_key).map_err(cache_error)?;
         }
 
         Ok(previous)
@@ -294,7 +307,15 @@ where
     /// Removes a value and returns any previous value.
     pub fn remove(&self, key: &str) -> Result<Option<T>> {
         let cache = self.build_cache()?;
-        let previous = cache.cache_remove(&key.to_owned()).map_err(cache_error)?;
+        let owned_key = key.to_owned();
+        let previous = match cache.cache_remove(&owned_key) {
+            Ok(previous) => previous,
+            Err(DiskCacheError::CacheDeserializationError(_)) => {
+                cache.cache_delete(&owned_key).map_err(cache_error)?;
+                None
+            }
+            Err(error) => return Err(cache_error(error)),
+        };
         self.forget_key(key)?;
         Ok(previous)
     }

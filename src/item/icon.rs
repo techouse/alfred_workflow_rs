@@ -1,3 +1,4 @@
+use serde::ser::SerializeMap;
 use serde::{Deserialize, Serialize};
 
 /// Alfred icon type.
@@ -45,11 +46,25 @@ impl<'de> Deserialize<'de> for IconType {
 }
 
 /// Alfred result icon metadata.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize)]
 pub struct Icon {
     path: String,
-    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "type", default)]
     icon_type: Option<IconType>,
+}
+
+impl Serialize for Icon {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(1 + usize::from(self.icon_type.is_some())))?;
+        map.serialize_entry("path", &self.path)?;
+        if let Some(icon_type) = self.icon_type {
+            map.serialize_entry("type", &icon_type)?;
+        }
+        map.end()
+    }
 }
 
 impl Icon {

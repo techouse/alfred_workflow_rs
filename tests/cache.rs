@@ -1,9 +1,33 @@
-use alfred_workflow_rs::{FileCache, Item, Items, WorkflowCache};
+use alfred_workflow_rs::{
+    AutomaticCache, FileCache, Icon, Item, ItemText, Items, Modifier, ModifierKey, WorkflowCache,
+};
+use cached::ConcurrentCached;
+use cached::stores::DiskCache;
 use pretty_assertions::assert_eq;
 use tempfile::tempdir;
 
 fn first_item() -> Item {
     Item::with_arg("First", "first-arg").set_uid("uid-1")
+}
+
+fn item_with_omitted_optional_fields() -> alfred_workflow_rs::Result<Item> {
+    Item::with_arg("Result", "result-arg")
+        .set_icon(Icon::new("icon.png"))
+        .set_text(ItemText::new("copy text"))
+        .try_set_modifier([ModifierKey::Cmd], Modifier::new())
+}
+
+fn seed_incompatible_cache(
+    path: &std::path::Path,
+    name: &str,
+    key: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let cache = DiskCache::<String, u64>::new(name)
+        .disk_directory(path)
+        .sync_to_disk_on_cache_change(true)
+        .build()?;
+    cache.cache_set(key.to_owned(), 42)?;
+    Ok(())
 }
 
 #[test]
@@ -137,6 +161,55 @@ fn file_cache_get_put_and_remove_round_trips_items() -> Result<(), Box<dyn std::
 
     reopened.remove(&key)?;
     assert_eq!(cache.get(&key)?, None);
+
+    Ok(())
+}
+
+#[test]
+fn file_cache_round_trips_script_filter_types_with_omitted_optional_fields()
+-> Result<(), Box<dyn std::error::Error>> {
+    let dir = tempdir()?;
+    let cache = FileCache::<Items>::try_with_config(dir.path(), "test_cache", 5, 60, false)?;
+    let items = Items::new(vec![item_with_omitted_optional_fields()?])
+        .with_cache(AutomaticCache::try_new(60)?);
+
+    cache.put("query", items.clone())?;
+
+    let reopened = FileCache::<Items>::try_with_config(dir.path(), "test_cache", 5, 60, false)?;
+    assert_eq!(reopened.get("query")?, Some(items));
+
+    Ok(())
+}
+
+#[test]
+fn file_cache_get_evicts_an_incompatible_cached_value() -> Result<(), Box<dyn std::error::Error>> {
+    let dir = tempdir()?;
+    seed_incompatible_cache(dir.path(), "test_cache", "query")?;
+    std::fs::write(
+        dir.path().join("test_cache_keys.json"),
+        r#"{"keys":["query"]}"#,
+    )?;
+    let cache = FileCache::<Items>::try_with_config(dir.path(), "test_cache", 5, 60, false)?;
+
+    assert_eq!(cache.get("query")?, None);
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("test_cache_keys.json"))?,
+        r#"{"keys":[]}"#
+    );
+
+    Ok(())
+}
+
+#[test]
+fn file_cache_put_replaces_an_incompatible_cached_value() -> Result<(), Box<dyn std::error::Error>>
+{
+    let dir = tempdir()?;
+    seed_incompatible_cache(dir.path(), "test_cache", "query")?;
+    let cache = FileCache::<Items>::try_with_config(dir.path(), "test_cache", 5, 60, false)?;
+    let items = Items::new(vec![item_with_omitted_optional_fields()?]);
+
+    assert_eq!(cache.put("query", items.clone())?, None);
+    assert_eq!(cache.get("query")?, Some(items));
 
     Ok(())
 }

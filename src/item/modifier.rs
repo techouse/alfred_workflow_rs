@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::str::FromStr;
 
+use serde::ser::SerializeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{Error, Result};
@@ -72,16 +73,40 @@ impl<'de> Deserialize<'de> for ModifierKey {
 }
 
 /// Alternate item properties shown when modifier keys are held.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize)]
 pub struct Modifier {
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     arg: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     subtitle: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     icon: Option<Icon>,
     #[serde(default = "default_modifier_valid")]
     valid: bool,
+}
+
+impl Serialize for Modifier {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let len = 1
+            + usize::from(self.arg.is_some())
+            + usize::from(self.subtitle.is_some())
+            + usize::from(self.icon.is_some());
+        let mut map = serializer.serialize_map(Some(len))?;
+        if let Some(arg) = &self.arg {
+            map.serialize_entry("arg", arg)?;
+        }
+        if let Some(subtitle) = &self.subtitle {
+            map.serialize_entry("subtitle", subtitle)?;
+        }
+        if let Some(icon) = &self.icon {
+            map.serialize_entry("icon", icon)?;
+        }
+        map.serialize_entry("valid", &self.valid)?;
+        map.end()
+    }
 }
 
 impl Modifier {
