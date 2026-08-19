@@ -1,7 +1,7 @@
 [package]
 authors = ["Klemen Tusar <techouse@gmail.com>"]
 name = "alfred_workflow_rs"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 rust-version = "1.88"
 description = "Build Alfred workflows in Rust with Script Filter output, caches, plist user configuration, and GitHub updates."
