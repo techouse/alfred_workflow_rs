@@ -14,7 +14,7 @@ configuration, and GitHub release updates. This crate is a Rust port of the Dart
 
 ```toml
 [dependencies]
-alfred_workflow_rs = "1.0.0"
+alfred_workflow_rs = "1.0.1"
 ```
 
 The crate requires Rust `1.88` or newer.
