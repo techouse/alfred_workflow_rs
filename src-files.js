@@ -1,0 +1,2 @@
+createSrcSidebar('[["alfred_workflow_rs",["",[["item",[],["icon.rs","modifier.rs","text.rs"]],["user_config",[],["model.rs"]]],["action.rs","automatic_cache.rs","cache.rs","error.rs","item.rs","items.rs","lib.rs","updater.rs","user_config.rs","workflow.rs"]]]]');
+//{"start":19,"fragment_lengths":[240]}

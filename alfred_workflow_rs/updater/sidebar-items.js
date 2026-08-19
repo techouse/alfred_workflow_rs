@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["parse_version_tag"],"struct":["CommandOpener","GithubAsset","GithubRelease","GithubUser","Updater","UpdaterBuilder"],"trait":["Opener"]};
