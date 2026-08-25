@@ -7,6 +7,7 @@
 [![docs.rs](https://docs.rs/alfred_workflow_rs/badge.svg)](https://docs.rs/alfred_workflow_rs)
 [![codecov](https://codecov.io/gh/techouse/alfred_workflow_rs/graph/badge.svg?token=F4p7aCyHSa)](https://codecov.io/gh/techouse/alfred_workflow_rs)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/ddb99254b5db4d65b5bdf73ceea2f3b3)](https://app.codacy.com/gh/techouse/alfred_workflow_rs/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
+[![GitHub License](https://img.shields.io/github/license/techouse/alfred_workflow_rs)](https://github.com/techouse/alfred_workflow_rs/blob/main/LICENSE)
 
 Build Alfred workflows in Rust with Script Filter output, file caching, plist user
 configuration, and GitHub release updates. This crate is a Rust port of the Dart
