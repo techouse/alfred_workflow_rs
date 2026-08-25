@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/techouse/alfred_workflow_rs/actions/workflows/test.yml/badge.svg)](https://github.com/techouse/alfred_workflow_rs/actions/workflows/test.yml)
 [![crates.io](https://img.shields.io/crates/v/alfred_workflow_rs.svg)](https://crates.io/crates/alfred_workflow_rs)
+[![Crates.io MSRV](https://img.shields.io/crates/msrv/alfred_workflow_rs)](https://crates.io/crates/alfred_workflow_rs)
+[![Crates.io Total Downloads](https://img.shields.io/crates/d/alfred_workflow_rs)](https://crates.io/crates/alfred_workflow_rs)
 [![docs.rs](https://docs.rs/alfred_workflow_rs/badge.svg)](https://docs.rs/alfred_workflow_rs)
 [![codecov](https://codecov.io/gh/techouse/alfred_workflow_rs/graph/badge.svg?token=F4p7aCyHSa)](https://codecov.io/gh/techouse/alfred_workflow_rs)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/ddb99254b5db4d65b5bdf73ceea2f3b3)](https://app.codacy.com/gh/techouse/alfred_workflow_rs/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
