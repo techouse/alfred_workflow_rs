@@ -2,7 +2,7 @@ use alfred_workflow_rs::{
     AutomaticCache, FileCache, Icon, Item, ItemText, Items, Modifier, ModifierKey, WorkflowCache,
 };
 use cached::ConcurrentCached;
-use cached::stores::DiskCache;
+use cached::stores::RedbCache;
 use pretty_assertions::assert_eq;
 use tempfile::tempdir;
 
@@ -22,9 +22,9 @@ fn seed_incompatible_cache(
     name: &str,
     key: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let cache = DiskCache::<String, u64>::new(name)
-        .disk_directory(path)
-        .sync_to_disk_on_cache_change(true)
+    let cache = RedbCache::<String, u64>::builder(name)
+        .disk_dir(path)
+        .durable(true)
         .build()?;
     cache.cache_set(key.to_owned(), 42)?;
     Ok(())

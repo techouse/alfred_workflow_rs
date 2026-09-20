@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 
 use cached::ConcurrentCached;
-use cached::stores::{DiskCache, DiskCacheError};
+use cached::stores::{RedbCache, RedbCacheError};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
@@ -292,7 +292,7 @@ where
             Ok(previous) => previous,
             Err(error) => {
                 recover_cache_deserialization_error(error)?;
-                cache.connection().flush().map_err(cache_error)?;
+                cache.flush().map_err(cache_error)?;
                 None
             }
         };
@@ -320,19 +320,17 @@ where
         Ok(previous)
     }
 
-    fn build_cache(&self) -> Result<DiskCache<String, T>> {
-        // The underlying `sled` store takes an exclusive file lock on the cache
-        // directory. When a previous `DiskCache` from this same `FileCache` was
-        // just dropped, that lock can still be held momentarily (sled releases
-        // it from a background thread), which surfaces as a transient
-        // "Storage connection error" when the next instance is opened. Retry a
-        // few times with a short backoff so these races do not fail callers.
+    fn build_cache(&self) -> Result<RedbCache<String, T>> {
+        // Redb takes an exclusive file lock on the cache database. When a
+        // previous cache instance was just dropped, that lock may still be
+        // releasing when the next instance is opened, so retry transient
+        // storage-open failures with a short backoff.
         let mut last_error = None;
         for attempt in 0..Self::CACHE_OPEN_MAX_ATTEMPTS {
-            match DiskCache::new(&self.name)
-                .disk_directory(&self.path)
+            match RedbCache::builder(self.name.clone())
+                .disk_dir(&self.path)
                 .ttl(std::time::Duration::from_secs(self.time_to_live_seconds))
-                .sync_to_disk_on_cache_change(true)
+                .durable(true)
                 .build()
             {
                 Ok(cache) => return Ok(cache),
@@ -422,9 +420,9 @@ fn cache_error(error: impl std::fmt::Display) -> Error {
     Error::Cache(error.to_string())
 }
 
-fn recover_cache_deserialization_error(error: DiskCacheError) -> Result<()> {
+fn recover_cache_deserialization_error(error: RedbCacheError) -> Result<()> {
     match error {
-        DiskCacheError::CacheDeserializationError(_) => Ok(()),
+        RedbCacheError::CacheDeserialization { .. } => Ok(()),
         error => Err(cache_error(error)),
     }
 }
@@ -435,12 +433,14 @@ mod tests {
 
     #[test]
     fn cache_recovery_propagates_non_deserialization_errors() {
-        let error = recover_cache_deserialization_error(DiskCacheError::BackgroundTaskFailed)
-            .expect_err("non-deserialization errors must be propagated");
+        let error = recover_cache_deserialization_error(RedbCacheError::Storage {
+            source: Box::new(std::io::Error::other("synthetic storage failure")),
+        })
+        .expect_err("non-deserialization errors must be propagated");
 
         assert_eq!(
             error.to_string(),
-            "failed to access cache: disk cache background task failed"
+            "failed to access cache: storage error: synthetic storage failure"
         );
     }
 }

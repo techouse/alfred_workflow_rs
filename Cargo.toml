@@ -1,9 +1,9 @@
 [package]
 authors = ["Klemen Tusar <techouse@gmail.com>"]
 name = "alfred_workflow_rs"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.92"
 description = "Build Alfred workflows in Rust with Script Filter output, caches, plist user configuration, and GitHub updates."
 license = "BSD-3-Clause"
 readme = "README.md"
@@ -24,20 +24,20 @@ include = [
 ]
 
 [dependencies]
-cached = { version = "2.0.2", default-features = false, features = ["disk_store"] }
+cached = { version = "4.0.0", default-features = false, features = ["redb_store"] }
 md5 = "0.8.1"
-plist = "1.10.0"
+plist = "1.10.1"
 semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "2.0"
-ureq = "3.3.0"
+ureq = "3.4.2"
 url = { version = "2.5", features = ["serde"] }
 
 [dev-dependencies]
 mockito = "1.7"
 pretty_assertions = "1.4"
-tempfile = "3.10"
+tempfile = "3.27"
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]

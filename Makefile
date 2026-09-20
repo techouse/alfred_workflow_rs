@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 
 CARGO ?= cargo
-CARGO_MSRV ?= cargo +1.88.0
+CARGO_MSRV ?= cargo +1.92.0
 RUSTDOCFLAGS_DOCS ?= -D warnings --cfg docsrs
 PACKAGE_NAME ?= alfred_workflow_rs
 PACKAGE_VERSION ?= $(shell sed -n 's/^version = "\([^"]*\)"$$/\1/p' Cargo.toml | head -n 1)
@@ -54,7 +54,7 @@ coverage: ## Generate an LCOV coverage report (requires cargo-llvm-cov)
 coverage-html: ## Generate an HTML coverage report (requires cargo-llvm-cov)
 	$(CARGO) llvm-cov --all-features --locked --lib --tests --html
 
-msrv: ## Run tests on the crate MSRV (requires toolchain 1.88.0)
+msrv: ## Run tests on the crate MSRV (requires toolchain 1.92.0)
 	$(CARGO_MSRV) test --locked -- --test-threads=1 --nocapture
 
 docs: ## Build library docs with docs.rs warning settings
